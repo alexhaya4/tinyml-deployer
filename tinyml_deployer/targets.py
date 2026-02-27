@@ -13,6 +13,7 @@ class MCUTarget:
     clock_mhz: int
     fpu: bool
     framework: str
+    cycles_per_mac: int = 1
     supported_ops: list[str] = field(default_factory=list)
 
 
@@ -23,6 +24,7 @@ ESP32 = MCUTarget(
     clock_mhz=240,
     fpu=False,
     framework="ESP-IDF",
+    cycles_per_mac=10,
     supported_ops=[
         "CONV_2D",
         "DEPTHWISE_CONV_2D",
@@ -45,6 +47,7 @@ ESP32S3 = MCUTarget(
     clock_mhz=240,
     fpu=False,
     framework="ESP-IDF",
+    cycles_per_mac=4,
     supported_ops=[
         "CONV_2D",
         "DEPTHWISE_CONV_2D",
@@ -70,6 +73,7 @@ STM32F4 = MCUTarget(
     clock_mhz=168,
     fpu=True,
     framework="STM32CubeAI",
+    cycles_per_mac=4,
     supported_ops=[
         "CONV_2D",
         "DEPTHWISE_CONV_2D",
@@ -91,6 +95,7 @@ STM32H7 = MCUTarget(
     clock_mhz=480,
     fpu=True,
     framework="STM32CubeAI",
+    cycles_per_mac=2,
     supported_ops=[
         "CONV_2D",
         "DEPTHWISE_CONV_2D",
