@@ -1,3 +1,7 @@
+[![PyPI version](https://img.shields.io/pypi/v/tinyml-deployer)](https://pypi.org/project/tinyml-deployer/)
+[![Python version](https://img.shields.io/pypi/pyversions/tinyml-deployer)](https://pypi.org/project/tinyml-deployer/)
+[![License](https://img.shields.io/pypi/l/tinyml-deployer)](LICENSE)
+
 # tinyml-deployer
 
 A Python CLI tool for deploying TensorFlow Lite models to ESP32 and STM32 microcontrollers.
@@ -212,6 +216,11 @@ twine upload dist/*   # when ready to publish
 
 Dependencies: `tensorflow`, `numpy`, `click`, `rich`. See `pyproject.toml` for the full
 list and version constraints.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on
+forking the repo, setting up a dev environment, running tests, and submitting pull requests.
 
 ## License
 
