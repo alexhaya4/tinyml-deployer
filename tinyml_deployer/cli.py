@@ -153,11 +153,53 @@ def quantize(model: str, output: str | None, qtype: str) -> None:
 
 @cli.command()
 @click.argument("model", type=click.Path(exists=True))
-@click.option("--target", "-t", type=str, required=True, help="Target MCU (e.g. esp32, stm32f4).")
-@click.option("--port", "-p", type=str, default=None, help="Serial port for flashing.")
-def deploy(model: str, target: str, port: str | None) -> None:
-    """Deploy a TFLite model to a target microcontroller."""
-    console.print("[yellow]deploy:[/yellow] Coming soon")
+@click.option("--target", "-t", type=str, default="esp32", help="Target MCU (e.g. esp32, stm32f4).")
+@click.option("--output", "-o", type=click.Path(), default=None, help="Output project directory.")
+def deploy(model: str, target: str, output: str | None) -> None:
+    """Generate a deployment project for a TFLite model."""
+    from tinyml_deployer.deployer import deploy_model
+
+    if output is None:
+        from pathlib import Path
+        stem = Path(model).stem
+        output = f"{stem}_{target}_project"
+
+    console.print(
+        f"\nDeploying [bold]{model}[/bold] for [cyan]{target}[/cyan] "
+        f"to [bold]{output}[/bold]...\n"
+    )
+
+    try:
+        result = deploy_model(
+            model_path=model,
+            target_name=target,
+            output_dir=output,
+        )
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise SystemExit(1) from None
+
+    # -- Generated files table --
+    table = Table(title="Generated Files", title_style="bold")
+    table.add_column("File", style="cyan")
+    table.add_column("Description", style="dim")
+    for gf in result.files:
+        table.add_row(gf.path, gf.description)
+    console.print(table)
+    console.print()
+
+    if result.analysis:
+        info_table = Table(title="Model Summary", show_header=False, title_style="bold")
+        info_table.add_column("Property", style="dim")
+        info_table.add_column("Value")
+        info_table.add_row("Model size", _format_bytes(result.analysis.model_size_bytes))
+        info_table.add_row("Tensor arena", _format_bytes(result.analysis.tensor_arena_bytes))
+        info_table.add_row("Target", result.target_name)
+        info_table.add_row("Compatible", _yes_no(result.analysis.compatible))
+        console.print(info_table)
+        console.print()
+
+    console.print(f"[green]Project generated at:[/green] {result.output_dir}\n")
 
 
 @cli.command()
