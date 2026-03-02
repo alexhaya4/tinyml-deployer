@@ -4,10 +4,11 @@ A Python CLI tool for deploying TensorFlow Lite models to ESP32 and STM32 microc
 
 ## Features
 
-- **Model analysis** - Check model compatibility with target MCU constraints (flash, RAM, supported ops)
-- **Quantization** - Quantize models to int8 or float16 for efficient on-device inference
-- **Deployment** - Flash optimized models directly to connected microcontrollers
-- **Benchmarking** - Measure inference latency and memory usage on real hardware
+- **Model analysis** -- check model compatibility with target MCU constraints (flash, RAM, supported ops)
+- **Post-training quantization** -- quantize models to int8, float16, or dynamic range for smaller size
+- **C code generation** -- convert models to C byte arrays and generate TFLite Micro inference wrappers
+- **Project scaffolding** -- generate complete ESP-IDF or STM32 build projects ready to compile and flash
+- **Performance benchmarking** -- estimate latency, throughput, and utilization across all targets
 
 ## Supported Targets
 
@@ -21,35 +22,163 @@ A Python CLI tool for deploying TensorFlow Lite models to ESP32 and STM32 microc
 ## Installation
 
 ```bash
-pip install -e .
-```
-
-Or install from source:
-
-```bash
 git clone https://github.com/alexhaya4/tinyml-deployer.git
 cd tinyml-deployer
 pip install -e .
 ```
 
-## CLI Usage
+## Quick Start
+
+Full workflow from training a model to generating a deployment project:
 
 ```bash
-# Show version and help
-tinyml-deployer --version
-tinyml-deployer --help
+# 1. Train a sine wave model (included example)
+python examples/sine_model/train.py
 
-# Analyze a model for a specific target
-tinyml-deployer analyze model.tflite --target esp32
+# 2. Analyze the model for your target
+tinyml-deployer analyze examples/sine_model/sine_model.tflite --target esp32
 
-# Quantize a model to int8
-tinyml-deployer quantize model.tflite --dtype int8 --output model_quant.tflite
+# 3. Quantize the model (optional, for larger models)
+tinyml-deployer quantize examples/sine_model/sine_model.tflite --type int8
 
-# Deploy to a connected board
-tinyml-deployer deploy model.tflite --target stm32f4 --port /dev/ttyUSB0
+# 4. Compare performance across all targets
+tinyml-deployer benchmark examples/sine_model/sine_model.tflite --compare
 
-# Benchmark inference performance
-tinyml-deployer benchmark model.tflite --target esp32s3 --runs 200
+# 5. Generate a complete ESP-IDF project
+tinyml-deployer deploy examples/sine_model/sine_model.tflite --target esp32 --output my_project
+
+# 6. Build and flash (requires ESP-IDF toolchain)
+cd my_project
+idf.py set-target esp32
+idf.py build
+idf.py -p /dev/ttyUSB0 flash monitor
+```
+
+## CLI Usage
+
+### Analyze
+
+Check a model's compatibility and memory requirements for a specific target:
+
+```
+$ tinyml-deployer analyze examples/sine_model/sine_model.tflite --target esp32
+
+Analyzing examples/sine_model/sine_model.tflite for esp32...
+
+                        Model Info
++---------------------------------------------------------+
+| Path      | examples/sine_model/sine_model.tflite       |
+| Size      | 3.1 KB                                      |
+| Input     | serving_default_keras_tensor:0    (float32)  |
+| Output    | StatefulPartitionedCall_1:0    (float32)     |
+| Operators | DELEGATE, FULLY_CONNECTED                    |
+| Total ops | 4                                            |
++---------------------------------------------------------+
+                Memory Estimates
++----------------------------------------------+
+| Flash usage       | 3.1 KB  (limit: 4096 KB) |
+| Fits in flash     | Yes                       |
+| Tensor arena      | 2.1 KB  (limit: 520 KB)   |
+| Fits in RAM       | Yes                       |
+| Estimated MACs    | 288                       |
+| Estimated latency | 0.01 ms                   |
++----------------------------------------------+
+```
+
+### Quantize
+
+Apply post-training quantization to reduce model size:
+
+```
+$ tinyml-deployer quantize examples/sine_model/sine_model.tflite --type int8
+
+Quantizing examples/sine_model/sine_model.tflite with int8 quantization...
+
+                        Quantization Result
++-----------------------------------------------------------------+
+| Input model       | examples/sine_model/sine_model.tflite       |
+| Output model      | examples/sine_model/sine_model_quant.tflite |
+| Quantization type | int8                                        |
+| Original size     | 3.1 KB                                      |
+| Quantized size    | 3.3 KB                                      |
+| Compression ratio | 0.95x                                       |
++-----------------------------------------------------------------+
+```
+
+Supported quantization types: `int8`, `float16`, `dynamic`.
+
+Note: very small models (like the 337-parameter sine model) may not shrink after
+quantization because the metadata overhead exceeds the savings from reduced
+precision. Quantization provides significant compression on larger models.
+
+### Deploy
+
+Generate a complete build project with model data, inference wrapper, and
+platform-specific scaffolding:
+
+```
+$ tinyml-deployer deploy examples/sine_model/sine_model.tflite --target esp32 --output sine_esp32_project
+
+Deploying examples/sine_model/sine_model.tflite for esp32 to sine_esp32_project...
+
+                             Generated Files
++-----------------------------------------------------------------------+
+| File                                   | Description                  |
+|----------------------------------------+------------------------------|
+| sine_esp32_project/main/model_data.h   | Model byte array header      |
+| sine_esp32_project/main/model_data.c   | Model byte array source      |
+| sine_esp32_project/main/inference.h    | Inference wrapper header     |
+| sine_esp32_project/main/inference.c    | Inference wrapper source     |
+| sine_esp32_project/CMakeLists.txt      | Root CMake project file      |
+| sine_esp32_project/main/CMakeLists.txt | Main component CMake file    |
+| sine_esp32_project/main/main.c         | Application entry point      |
+| sine_esp32_project/sdkconfig.defaults  | Default SDK configuration    |
+| sine_esp32_project/README.md           | Build and flash instructions |
++-----------------------------------------------------------------------+
+
+Project generated at: sine_esp32_project
+```
+
+Supported targets: `esp32`, `esp32s3` (ESP-IDF projects), `stm32f4`, `stm32h7` (Makefile + HAL stubs).
+
+### Benchmark
+
+Estimate inference performance on a single target or compare across all targets:
+
+```
+$ tinyml-deployer benchmark examples/sine_model/sine_model.tflite --compare
+
+Benchmarking examples/sine_model/sine_model.tflite across all targets...
+
+                                     Target Comparison
++------------------------------------------------------------------------------------------+
+| Target  |   Clock | FPU | Latency (ms) | Throughput (inf/s) | Util % | Flash OK | RAM OK |
+|---------+---------+-----+--------------+--------------------+--------+----------+--------|
+| stm32h7 | 480 MHz | Yes |       0.0012 |            833,333 | 0.0001 |   Yes    |  Yes   |
+| esp32s3 | 240 MHz | No  |       0.0048 |            208,333 | 0.0005 |   Yes    |  Yes   |
+| stm32f4 | 168 MHz | Yes |       0.0069 |            145,833 | 0.0007 |   Yes    |  Yes   |
+| esp32   | 240 MHz | No  |       0.0120 |             83,333 | 0.0012 |   Yes    |  Yes   |
++------------------------------------------------------------------------------------------+
+
+Total MACs per inference: 288
+```
+
+## Project Structure
+
+```
+tinyml_deployer/
+    __init__.py       # Package version
+    cli.py            # Click CLI entry point with all subcommands
+    analyzer.py       # TFLite model analysis (ops, memory, compatibility)
+    quantizer.py      # Post-training quantization (int8, float16, dynamic)
+    codegen.py        # C source generation (model data + inference wrapper)
+    deployer.py       # Full project scaffolding (ESP-IDF, STM32)
+    benchmark.py      # Performance estimation across targets
+    targets.py        # MCU target definitions and specs
+examples/
+    sine_model/
+        train.py          # Training script for the example model
+        sine_model.tflite # Pre-trained 3.1 KB sine wave model
 ```
 
 ## Development
@@ -59,6 +188,8 @@ git clone https://github.com/alexhaya4/tinyml-deployer.git
 cd tinyml-deployer
 pip install -e .
 ```
+
+Dependencies: `tensorflow`, `numpy`, `click`, `rich`. See `requirements.txt` for version pins.
 
 ## License
 
