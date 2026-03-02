@@ -10,8 +10,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SINE_MODEL_PATH = str(REPO_ROOT / "examples" / "sine_model" / "sine_model.tflite")
 
-ALL_TARGET_NAMES: list[str] = ["esp32", "esp32s3", "stm32f4", "stm32h7"]
-ESP_TARGET_NAMES: list[str] = ["esp32", "esp32s3"]
+ALL_TARGET_NAMES: list[str] = ["esp32", "esp32s3", "esp32c3", "esp32c6", "stm32f4", "stm32h7"]
+ESP_TARGET_NAMES: list[str] = ["esp32", "esp32s3", "esp32c3", "esp32c6"]
 STM_TARGET_NAMES: list[str] = ["stm32f4", "stm32h7"]
 
 

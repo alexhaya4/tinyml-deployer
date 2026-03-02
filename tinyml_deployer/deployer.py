@@ -68,6 +68,8 @@ void app_main(void) {{
 """
 
 _ESP_SDKCONFIG = """\
+# Target chip selection (e.g. esp32, esp32s3, esp32c3, esp32c6).
+CONFIG_IDF_TARGET="{idf_target}"
 # TFLite Micro needs at least 8 KB of stack for the main task.
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
 CONFIG_FREERTOS_THREAD_LOCAL_STORAGE_POINTERS=2
@@ -111,7 +113,7 @@ def _scaffold_esp32(
 
     # sdkconfig.defaults
     path = output_dir / "sdkconfig.defaults"
-    path.write_text(_ESP_SDKCONFIG)
+    path.write_text(_ESP_SDKCONFIG.format(idf_target=target.name))
     files.append(GeneratedFile(str(path), "Default SDK configuration"))
 
     # README.md
@@ -290,7 +292,7 @@ def _write_readme(
             "   registry or vendor the source directly.\n"
             "3. Build and flash:\n"
             "   ```\n"
-            "   idf.py set-target esp32\n"
+            f"   idf.py set-target {target.name}\n"
             "   idf.py build\n"
             "   idf.py -p /dev/ttyUSB0 flash monitor\n"
             "   ```\n"

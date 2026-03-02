@@ -116,9 +116,57 @@ STM32H7 = MCUTarget(
     ],
 )
 
+ESP32C3 = MCUTarget(
+    name="esp32c3",
+    flash_kb=4096,
+    ram_kb=400,
+    clock_mhz=160,
+    fpu=False,
+    framework="ESP-IDF",
+    cycles_per_mac=12,
+    supported_ops=[
+        "CONV_2D",
+        "DEPTHWISE_CONV_2D",
+        "FULLY_CONNECTED",
+        "SOFTMAX",
+        "RESHAPE",
+        "AVERAGE_POOL_2D",
+        "MAX_POOL_2D",
+        "ADD",
+        "MUL",
+        "QUANTIZE",
+        "DEQUANTIZE",
+    ],
+)
+
+ESP32C6 = MCUTarget(
+    name="esp32c6",
+    flash_kb=4096,
+    ram_kb=512,
+    clock_mhz=160,
+    fpu=False,
+    framework="ESP-IDF",
+    cycles_per_mac=10,
+    supported_ops=[
+        "CONV_2D",
+        "DEPTHWISE_CONV_2D",
+        "FULLY_CONNECTED",
+        "SOFTMAX",
+        "RESHAPE",
+        "AVERAGE_POOL_2D",
+        "MAX_POOL_2D",
+        "ADD",
+        "MUL",
+        "QUANTIZE",
+        "DEQUANTIZE",
+    ],
+)
+
 TARGETS: dict[str, MCUTarget] = {
     "esp32": ESP32,
     "esp32s3": ESP32S3,
+    "esp32c3": ESP32C3,
+    "esp32c6": ESP32C6,
     "stm32f4": STM32F4,
     "stm32h7": STM32H7,
 }

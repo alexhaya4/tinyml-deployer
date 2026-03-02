@@ -55,3 +55,29 @@ class TestTargetFields:
 
     def test_targets_dict_matches_count(self) -> None:
         assert len(TARGETS) == len(ALL_TARGET_NAMES)
+
+
+class TestRISCVTargets:
+    """Verify RISC-V ESP32-C3 and ESP32-C6 target definitions."""
+
+    def test_esp32c3_specs(self) -> None:
+        t = get_target("esp32c3")
+        assert t.clock_mhz == 160
+        assert t.ram_kb == 400
+        assert t.flash_kb == 4096
+        assert t.fpu is False
+        assert t.framework == "ESP-IDF"
+        assert t.cycles_per_mac == 12
+
+    def test_esp32c6_specs(self) -> None:
+        t = get_target("esp32c6")
+        assert t.clock_mhz == 160
+        assert t.ram_kb == 512
+        assert t.flash_kb == 4096
+        assert t.fpu is False
+        assert t.framework == "ESP-IDF"
+        assert t.cycles_per_mac == 10
+
+    def test_riscv_targets_have_fully_connected(self) -> None:
+        for name in ("esp32c3", "esp32c6"):
+            assert "FULLY_CONNECTED" in get_target(name).supported_ops

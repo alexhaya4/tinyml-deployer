@@ -12,12 +12,14 @@ A Python CLI tool for deploying TensorFlow Lite models to ESP32 and STM32 microc
 
 ## Supported Targets
 
-| Target   | Flash (KB) | RAM (KB) | Clock (MHz) | FPU | Framework   |
-|----------|-----------|----------|-------------|-----|-------------|
-| ESP32    | 4096      | 520      | 240         | No  | ESP-IDF     |
-| ESP32-S3 | 8192      | 512      | 240         | No  | ESP-IDF     |
-| STM32F4  | 1024      | 192      | 168         | Yes | STM32CubeAI |
-| STM32H7  | 2048      | 1024     | 480         | Yes | STM32CubeAI |
+| Target   | Arch    | Flash (KB) | RAM (KB) | Clock (MHz) | FPU | Framework   |
+|----------|---------|-----------|----------|-------------|-----|-------------|
+| ESP32    | Xtensa  | 4096      | 520      | 240         | No  | ESP-IDF     |
+| ESP32-S3 | Xtensa  | 8192      | 512      | 240         | No  | ESP-IDF     |
+| ESP32-C3 | RISC-V  | 4096      | 400      | 160         | No  | ESP-IDF     |
+| ESP32-C6 | RISC-V  | 4096      | 512      | 160         | No  | ESP-IDF     |
+| STM32F4  | Cortex-M4 | 1024    | 192      | 168         | Yes | STM32CubeAI |
+| STM32H7  | Cortex-M7 | 2048    | 1024     | 480         | Yes | STM32CubeAI |
 
 ## Installation
 
@@ -139,7 +141,7 @@ Deploying examples/sine_model/sine_model.tflite for esp32 to sine_esp32_project.
 Project generated at: sine_esp32_project
 ```
 
-Supported targets: `esp32`, `esp32s3` (ESP-IDF projects), `stm32f4`, `stm32h7` (Makefile + HAL stubs).
+Supported targets: `esp32`, `esp32s3`, `esp32c3`, `esp32c6` (ESP-IDF projects), `stm32f4`, `stm32h7` (Makefile + HAL stubs).
 
 ### Benchmark
 
@@ -151,14 +153,16 @@ $ tinyml-deployer benchmark examples/sine_model/sine_model.tflite --compare
 Benchmarking examples/sine_model/sine_model.tflite across all targets...
 
                                      Target Comparison
-+------------------------------------------------------------------------------------------+
-| Target  |   Clock | FPU | Latency (ms) | Throughput (inf/s) | Util % | Flash OK | RAM OK |
-|---------+---------+-----+--------------+--------------------+--------+----------+--------|
-| stm32h7 | 480 MHz | Yes |       0.0012 |            833,333 | 0.0001 |   Yes    |  Yes   |
-| esp32s3 | 240 MHz | No  |       0.0048 |            208,333 | 0.0005 |   Yes    |  Yes   |
-| stm32f4 | 168 MHz | Yes |       0.0069 |            145,833 | 0.0007 |   Yes    |  Yes   |
-| esp32   | 240 MHz | No  |       0.0120 |             83,333 | 0.0012 |   Yes    |  Yes   |
-+------------------------------------------------------------------------------------------+
++---------------------------------------------------------------------------------------------+
+| Target  |   Clock | FPU | Latency (ms) | Throughput (inf/s) | Util % | Flash OK | RAM OK   |
+|---------+---------+-----+--------------+--------------------+--------+----------+----------|
+| stm32h7 | 480 MHz | Yes |       0.0012 |            833,333 | 0.0001 |   Yes    |  Yes     |
+| esp32s3 | 240 MHz | No  |       0.0048 |            208,333 | 0.0005 |   Yes    |  Yes     |
+| stm32f4 | 168 MHz | Yes |       0.0069 |            145,833 | 0.0007 |   Yes    |  Yes     |
+| esp32c6 | 160 MHz | No  |       0.0180 |             55,556 | 0.0018 |   Yes    |  Yes     |
+| esp32   | 240 MHz | No  |       0.0120 |             83,333 | 0.0012 |   Yes    |  Yes     |
+| esp32c3 | 160 MHz | No  |       0.0216 |             46,296 | 0.0022 |   Yes    |  Yes     |
++---------------------------------------------------------------------------------------------+
 
 Total MACs per inference: 288
 ```

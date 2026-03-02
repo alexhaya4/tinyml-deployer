@@ -67,3 +67,15 @@ class TestBenchmarkAllTargets:
         results = benchmark_all_targets(sine_model_path)
         # STM32H7 has 480 MHz / 2 cyc = highest MAC throughput
         assert results[0].target_name == "stm32h7"
+
+    def test_includes_riscv_targets(self, sine_model_path: str) -> None:
+        results = benchmark_all_targets(sine_model_path)
+        names = {r.target_name for r in results}
+        assert "esp32c3" in names
+        assert "esp32c6" in names
+
+    def test_riscv_slower_than_xtensa(self, sine_model_path: str) -> None:
+        """ESP32-C3/C6 at 160 MHz should be slower than ESP32-S3 at 240 MHz."""
+        results = {r.target_name: r for r in benchmark_all_targets(sine_model_path)}
+        assert results["esp32c3"].estimated_latency_ms > results["esp32s3"].estimated_latency_ms
+        assert results["esp32c6"].estimated_latency_ms > results["esp32s3"].estimated_latency_ms
