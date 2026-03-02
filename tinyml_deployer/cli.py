@@ -204,11 +204,83 @@ def deploy(model: str, target: str, output: str | None) -> None:
 
 @cli.command()
 @click.argument("model", type=click.Path(exists=True))
-@click.option("--target", "-t", type=str, required=True, help="Target MCU (e.g. esp32, stm32f4).")
-@click.option("--runs", "-r", type=int, default=100, help="Number of inference runs.")
-def benchmark(model: str, target: str, runs: int) -> None:
-    """Benchmark model inference on target MCU."""
-    console.print("[yellow]benchmark:[/yellow] Coming soon")
+@click.option("--target", "-t", type=str, default="esp32", help="Target MCU (e.g. esp32, stm32f4).")
+@click.option("--compare", is_flag=True, default=False, help="Compare across all supported targets.")
+def benchmark(model: str, target: str, compare: bool) -> None:
+    """Estimate inference performance on target MCU(s)."""
+    from tinyml_deployer.benchmark import benchmark_all_targets, benchmark_model
+
+    if compare:
+        console.print(f"\nBenchmarking [bold]{model}[/bold] across all targets...\n")
+        try:
+            results = benchmark_all_targets(model)
+        except Exception as exc:
+            console.print(f"[red]Error:[/red] {exc}")
+            raise SystemExit(1) from None
+
+        wide = Console(width=100)
+        table = Table(title="Target Comparison", title_style="bold", show_lines=True)
+        table.add_column("Target", style="cyan", no_wrap=True)
+        table.add_column("Clock", justify="right", no_wrap=True)
+        table.add_column("FPU", no_wrap=True)
+        table.add_column("Latency (ms)", justify="right", no_wrap=True)
+        table.add_column("Throughput (inf/s)", justify="right", no_wrap=True)
+        table.add_column("Util %", justify="right", no_wrap=True)
+        table.add_column("Flash OK", justify="center", no_wrap=True)
+        table.add_column("RAM OK", justify="center", no_wrap=True)
+
+        for r in results:
+            latency = f"{r.estimated_latency_ms:.4f}" if r.estimated_latency_ms > 0 else "N/A"
+            throughput = f"{r.throughput_ips:,.0f}" if r.throughput_ips > 0 else "N/A"
+            util = f"{r.ops_utilization_pct:.4f}" if r.ops_utilization_pct > 0 else "N/A"
+            table.add_row(
+                r.target_name,
+                f"{r.clock_mhz} MHz",
+                _yes_no(r.fpu),
+                latency,
+                throughput,
+                util,
+                _yes_no(r.fits_in_flash),
+                _yes_no(r.fits_in_ram),
+            )
+
+        wide.print(table)
+        console.print()
+        if results and results[0].total_macs > 0:
+            console.print(
+                f"Total MACs per inference: [bold]{results[0].total_macs:,}[/bold]\n"
+            )
+        return
+
+    # Single-target benchmark
+    console.print(f"\nBenchmarking [bold]{model}[/bold] on [cyan]{target}[/cyan]...\n")
+
+    try:
+        result = benchmark_model(model, target)
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise SystemExit(1) from None
+
+    table = Table(title="Benchmark Result", show_header=False, title_style="bold")
+    table.add_column("Property", style="dim")
+    table.add_column("Value")
+    table.add_row("Target", result.target_name)
+    table.add_row("Clock speed", f"{result.clock_mhz} MHz")
+    table.add_row("Cycles per MAC", str(result.cycles_per_mac))
+    table.add_row("FPU", _yes_no(result.fpu))
+    table.add_row("Total MACs", f"{result.total_macs:,}")
+    if result.estimated_latency_ms > 0:
+        table.add_row("Estimated latency", f"{result.estimated_latency_ms:.4f} ms")
+        table.add_row("Throughput", f"{result.throughput_ips:,.0f} inferences/s")
+        table.add_row("Ops utilization", f"{result.ops_utilization_pct:.4f} %")
+    else:
+        table.add_row("Estimated latency", "N/A (no MACs detected)")
+    table.add_row("Model size", _format_bytes(result.model_size_bytes))
+    table.add_row("Tensor arena", _format_bytes(result.tensor_arena_bytes))
+    table.add_row("Fits in flash", _yes_no(result.fits_in_flash))
+    table.add_row("Fits in RAM", _yes_no(result.fits_in_ram))
+    console.print(table)
+    console.print()
 
 
 if __name__ == "__main__":

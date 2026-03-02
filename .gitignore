@@ -37,3 +37,9 @@ htmlcov/
 
 # Environment variables
 .env
+
+# Generated deployment projects
+*_project/
+
+# Generated quantized models
+*_quant.tflite
