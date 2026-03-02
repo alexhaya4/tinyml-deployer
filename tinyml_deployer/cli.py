@@ -108,10 +108,47 @@ def analyze(model: str, target: str) -> None:
 @cli.command()
 @click.argument("model", type=click.Path(exists=True))
 @click.option("--output", "-o", type=click.Path(), default=None, help="Output path for quantized model.")
-@click.option("--dtype", type=click.Choice(["int8", "float16"]), default="int8", help="Quantization type.")
-def quantize(model: str, output: str | None, dtype: str) -> None:
+@click.option(
+    "--type", "qtype",
+    type=click.Choice(["int8", "float16", "dynamic"]),
+    default="int8",
+    help="Quantization type (default: int8).",
+)
+def quantize(model: str, output: str | None, qtype: str) -> None:
     """Quantize a TFLite model for efficient MCU inference."""
-    console.print("[yellow]quantize:[/yellow] Coming soon")
+    from tinyml_deployer.quantizer import quantize_model
+
+    console.print(
+        f"\nQuantizing [bold]{model}[/bold] with [cyan]{qtype}[/cyan] quantization...\n"
+    )
+
+    try:
+        result = quantize_model(
+            input_path=model,
+            output_path=output,
+            quantization_type=qtype,
+        )
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise SystemExit(1) from None
+
+    # -- Summary table --
+    table = Table(title="Quantization Result", show_header=False, title_style="bold")
+    table.add_column("Property", style="dim")
+    table.add_column("Value")
+    table.add_row("Input model", model)
+    table.add_row("Output model", result.output_path)
+    table.add_row("Quantization type", result.quantization_type)
+    table.add_row("Original size", _format_bytes(result.original_size))
+    table.add_row("Quantized size", _format_bytes(result.quantized_size))
+    table.add_row("Compression ratio", f"{result.compression_ratio:.2f}x")
+    console.print(table)
+    console.print()
+
+    if result.compression_ratio > 1.0:
+        console.print("[green]Model successfully compressed.[/green]\n")
+    else:
+        console.print("[yellow]Quantized model is not smaller than the original.[/yellow]\n")
 
 
 @cli.command()
