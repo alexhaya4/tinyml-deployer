@@ -23,10 +23,18 @@ A Python CLI tool for deploying TensorFlow Lite models to ESP32 and STM32 microc
 
 ## Installation
 
+Install from PyPI:
+
+```bash
+pip install tinyml-deployer
+```
+
+Or install from source for development:
+
 ```bash
 git clone https://github.com/alexhaya4/tinyml-deployer.git
 cd tinyml-deployer
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 ## Quick Start
@@ -190,10 +198,20 @@ examples/
 ```bash
 git clone https://github.com/alexhaya4/tinyml-deployer.git
 cd tinyml-deployer
-pip install -e .
+pip install -e ".[dev]"
+pytest
 ```
 
-Dependencies: `tensorflow`, `numpy`, `click`, `rich`. See `requirements.txt` for version pins.
+### Building for PyPI
+
+```bash
+python -m build
+twine check dist/*
+twine upload dist/*   # when ready to publish
+```
+
+Dependencies: `tensorflow`, `numpy`, `click`, `rich`. See `pyproject.toml` for the full
+list and version constraints.
 
 ## License
 

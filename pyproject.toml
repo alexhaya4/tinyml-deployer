@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tinyml-deployer"
+version = "0.1.0"
+description = "Deploy TensorFlow Lite models to ESP32 and STM32 microcontrollers"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Alex Odhiambo Haya", email = "alexhaya4@gmail.com" },
+]
+keywords = ["tinyml", "tflite", "esp32", "stm32", "microcontroller", "edge-ai", "deployment"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Software Development :: Embedded Systems",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "tensorflow>=2.13.0",
+    "numpy>=1.24.0",
+    "click>=8.0.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/alexhaya4/tinyml-deployer"
+Repository = "https://github.com/alexhaya4/tinyml-deployer"
+Issues = "https://github.com/alexhaya4/tinyml-deployer/issues"
+
+[project.scripts]
+tinyml-deployer = "tinyml_deployer.cli:cli"
+
+[tool.setuptools.packages.find]
+include = ["tinyml_deployer*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
