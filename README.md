@@ -1,3 +1,4 @@
+[![CI](https://github.com/alexhaya4/tinyml-deployer/actions/workflows/ci.yml/badge.svg)](https://github.com/alexhaya4/tinyml-deployer/actions/workflows/ci.yml)
 [![PyPI version](https://img.shields.io/pypi/v/tinyml-deployer)](https://pypi.org/project/tinyml-deployer/)
 [![Python version](https://img.shields.io/pypi/pyversions/tinyml-deployer)](https://pypi.org/project/tinyml-deployer/)
 [![License](https://img.shields.io/pypi/l/tinyml-deployer)](LICENSE)
