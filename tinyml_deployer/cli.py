@@ -35,8 +35,9 @@ def cli() -> None:
 @click.argument("model", type=click.Path(exists=True))
 @click.option("--target", "-t", type=str, default="esp32", help="Target MCU (e.g. esp32, stm32f4).")
 def analyze(model: str, target: str) -> None:
-    """Analyze a TFLite model for target MCU compatibility."""
+    """Analyze a TFLite or ONNX model for target MCU compatibility."""
     from tinyml_deployer.analyzer import analyze_model
+    from tinyml_deployer.converters import ensure_tflite, is_onnx_model
     from tinyml_deployer.targets import get_target
 
     try:
@@ -45,11 +46,15 @@ def analyze(model: str, target: str) -> None:
         console.print(f"[red]Error:[/red] {exc}")
         raise SystemExit(1) from None
 
+    if is_onnx_model(model):
+        console.print("[yellow]Converting ONNX model to TFLite...[/yellow]")
+
     console.print(f"\nAnalyzing [bold]{model}[/bold] for [cyan]{mcu.name}[/cyan]...\n")
 
     try:
-        result = analyze_model(model, target)
-    except Exception as exc:
+        with ensure_tflite(model) as tflite_path:
+            result = analyze_model(tflite_path, target)
+    except (ImportError, Exception) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise SystemExit(1) from None
 
@@ -115,20 +120,25 @@ def analyze(model: str, target: str) -> None:
     help="Quantization type (default: int8).",
 )
 def quantize(model: str, output: str | None, qtype: str) -> None:
-    """Quantize a TFLite model for efficient MCU inference."""
+    """Quantize a TFLite or ONNX model for efficient MCU inference."""
+    from tinyml_deployer.converters import ensure_tflite, is_onnx_model
     from tinyml_deployer.quantizer import quantize_model
+
+    if is_onnx_model(model):
+        console.print("[yellow]Converting ONNX model to TFLite...[/yellow]")
 
     console.print(
         f"\nQuantizing [bold]{model}[/bold] with [cyan]{qtype}[/cyan] quantization...\n"
     )
 
     try:
-        result = quantize_model(
-            input_path=model,
-            output_path=output,
-            quantization_type=qtype,
-        )
-    except Exception as exc:
+        with ensure_tflite(model) as tflite_path:
+            result = quantize_model(
+                input_path=tflite_path,
+                output_path=output,
+                quantization_type=qtype,
+            )
+    except (ImportError, Exception) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise SystemExit(1) from None
 
@@ -156,13 +166,18 @@ def quantize(model: str, output: str | None, qtype: str) -> None:
 @click.option("--target", "-t", type=str, default="esp32", help="Target MCU (e.g. esp32, stm32f4).")
 @click.option("--output", "-o", type=click.Path(), default=None, help="Output project directory.")
 def deploy(model: str, target: str, output: str | None) -> None:
-    """Generate a deployment project for a TFLite model."""
+    """Generate a deployment project for a TFLite or ONNX model."""
+    from pathlib import Path
+
+    from tinyml_deployer.converters import ensure_tflite, is_onnx_model
     from tinyml_deployer.deployer import deploy_model
 
     if output is None:
-        from pathlib import Path
         stem = Path(model).stem
         output = f"{stem}_{target}_project"
+
+    if is_onnx_model(model):
+        console.print("[yellow]Converting ONNX model to TFLite...[/yellow]")
 
     console.print(
         f"\nDeploying [bold]{model}[/bold] for [cyan]{target}[/cyan] "
@@ -170,12 +185,13 @@ def deploy(model: str, target: str, output: str | None) -> None:
     )
 
     try:
-        result = deploy_model(
-            model_path=model,
-            target_name=target,
-            output_dir=output,
-        )
-    except Exception as exc:
+        with ensure_tflite(model) as tflite_path:
+            result = deploy_model(
+                model_path=tflite_path,
+                target_name=target,
+                output_dir=output,
+            )
+    except (ImportError, Exception) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise SystemExit(1) from None
 
@@ -207,14 +223,19 @@ def deploy(model: str, target: str, output: str | None) -> None:
 @click.option("--target", "-t", type=str, default="esp32", help="Target MCU (e.g. esp32, stm32f4).")
 @click.option("--compare", is_flag=True, default=False, help="Compare across all supported targets.")
 def benchmark(model: str, target: str, compare: bool) -> None:
-    """Estimate inference performance on target MCU(s)."""
+    """Estimate inference performance of a TFLite or ONNX model on target MCU(s)."""
     from tinyml_deployer.benchmark import benchmark_all_targets, benchmark_model
+    from tinyml_deployer.converters import ensure_tflite, is_onnx_model
+
+    if is_onnx_model(model):
+        console.print("[yellow]Converting ONNX model to TFLite...[/yellow]")
 
     if compare:
         console.print(f"\nBenchmarking [bold]{model}[/bold] across all targets...\n")
         try:
-            results = benchmark_all_targets(model)
-        except Exception as exc:
+            with ensure_tflite(model) as tflite_path:
+                results = benchmark_all_targets(tflite_path)
+        except (ImportError, Exception) as exc:
             console.print(f"[red]Error:[/red] {exc}")
             raise SystemExit(1) from None
 
@@ -256,8 +277,9 @@ def benchmark(model: str, target: str, compare: bool) -> None:
     console.print(f"\nBenchmarking [bold]{model}[/bold] on [cyan]{target}[/cyan]...\n")
 
     try:
-        result = benchmark_model(model, target)
-    except Exception as exc:
+        with ensure_tflite(model) as tflite_path:
+            result = benchmark_model(tflite_path, target)
+    except (ImportError, Exception) as exc:
         console.print(f"[red]Error:[/red] {exc}")
         raise SystemExit(1) from None
 

@@ -26,3 +26,11 @@ def sine_model_path() -> str:
 def tmp_output(tmp_path: Path) -> str:
     """Temporary output directory as a string."""
     return str(tmp_path)
+
+
+@pytest.fixture
+def fake_onnx_path(tmp_path: Path) -> str:
+    """Path to a fake .onnx file for testing conversion flow."""
+    onnx_file = tmp_path / "test_model.onnx"
+    onnx_file.write_bytes(b"fake onnx model content")
+    return str(onnx_file)

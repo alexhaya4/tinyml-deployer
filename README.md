@@ -10,6 +10,7 @@ A Python CLI tool for deploying TensorFlow Lite models to ESP32 and STM32 microc
 ## Features
 
 - **Model analysis** -- check model compatibility with target MCU constraints (flash, RAM, supported ops)
+- **ONNX model support** -- automatically convert `.onnx` models to TFLite before processing
 - **Post-training quantization** -- quantize models to int8, float16, or dynamic range for smaller size
 - **C code generation** -- convert models to C byte arrays and generate TFLite Micro inference wrappers
 - **Project scaffolding** -- generate complete ESP-IDF or STM32 build projects ready to compile and flash
@@ -68,6 +69,29 @@ idf.py set-target esp32
 idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
+
+## ONNX Support
+
+tinyml-deployer can accept ONNX models (`.onnx`) in addition to TFLite (`.tflite`).
+ONNX models are automatically converted to TFLite format before processing.
+
+Install with the ONNX extra:
+
+```bash
+pip install tinyml-deployer[onnx]
+```
+
+All commands accept `.onnx` files transparently:
+
+```bash
+tinyml-deployer analyze my_model.onnx --target esp32
+tinyml-deployer quantize my_model.onnx --type int8
+tinyml-deployer benchmark my_model.onnx --compare
+tinyml-deployer deploy my_model.onnx --target esp32 --output my_project
+```
+
+The conversion uses [onnx2tf](https://github.com/PINTO0309/onnx2tf) under the
+hood: `.onnx` -> TensorFlow SavedModel -> `.tflite`.
 
 ## CLI Usage
 
@@ -186,6 +210,7 @@ Total MACs per inference: 288
 tinyml_deployer/
     __init__.py       # Package version
     cli.py            # Click CLI entry point with all subcommands
+    converters.py     # ONNX-to-TFLite conversion (optional dependency)
     analyzer.py       # TFLite model analysis (ops, memory, compatibility)
     quantizer.py      # Post-training quantization (int8, float16, dynamic)
     codegen.py        # C source generation (model data + inference wrapper)
