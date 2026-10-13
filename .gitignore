@@ -48,3 +48,6 @@ htmlcov/
 firmware_checks/
 sine_artifacts/
 .ruff_cache/
+
+# Optional documentation capture tooling
+node_modules/

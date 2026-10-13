@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="570" viewBox="0 0 1200 570" role="img" aria-labelledby="title desc">
+  <title id="title">tinyml-deployer: from source model to checked firmware</title>
+  <desc id="desc">Source models and supplied calibration and validation data pass a numerical gate before ESP-IDF firmware generation and compilation. The same firmware binaries can run in QEMU or on a physical board. QEMU validates execution; board performance validation remains pending.</desc>
+  <defs>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M 32 0 L 0 0 0 32" fill="none" stroke="#243546" stroke-width="0.7"/></pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8097ab"/></marker>
+    <style>text{font-family:Inter,Arial,sans-serif}.label{font-size:13px;letter-spacing:2px;fill:#92a9bd}.heading{font-size:22px;font-weight:600;fill:#edf4fa}.body{font-size:16px;fill:#b6c7d5}.code{font-family:monospace;font-size:15px;fill:#73dec9}.wire{fill:none;stroke:#8097ab;stroke-width:2;marker-end:url(#arrow)}</style>
+  </defs>
+  <rect width="1200" height="570" rx="24" fill="#101e2b"/>
+  <rect width="1200" height="570" rx="24" fill="url(#grid)" opacity="0.6"/>
+  <text x="48" y="48" class="label">TINYML-DEPLOYER / ESP32-S3</text>
+  <text x="48" y="105" font-size="40" font-weight="700" fill="#f5f8fa">From model to checked firmware.</text>
+  <text x="48" y="140" class="body">Preserve the graph. Set an error budget. Execute the compiled binary.</text>
+  <path d="M335 267 H394" class="wire"/>
+  <path d="M730 267 H785" class="wire"/>
+  <path d="M952 330 V355 H614 V384" class="wire"/>
+  <path d="M952 330 V384" class="wire"/>
+  <rect x="48" y="190" width="287" height="152" rx="14" fill="#192d3e" stroke="#405366"/>
+  <text x="70" y="224" class="label">01 / INPUTS</text>
+  <text x="70" y="258" class="heading">Source model + data</text>
+  <text x="70" y="288" class="body">Keras / SavedModel / ONNX</text>
+  <text x="70" y="315" class="body">Calibration + validation arrays</text>
+  <rect x="394" y="190" width="336" height="152" rx="14" fill="#192d3e" stroke="#405366"/>
+  <text x="416" y="224" class="label">02 / NUMERICAL GATE</text>
+  <text x="416" y="258" class="heading">Quantize + compare</text>
+  <text x="416" y="288" class="body">Candidate vs float TFLite baseline</text>
+  <text x="416" y="315" class="code">--max-abs-error</text>
+  <rect x="785" y="190" width="367" height="140" rx="14" fill="#192d3e" stroke="#405366"/>
+  <text x="807" y="224" class="label">03 / FIRMWARE</text>
+  <text x="807" y="258" class="heading">Generate + compile</text>
+  <text x="807" y="288" class="body">C++ / ESP-IDF / TFLite Micro</text>
+  <rect x="48" y="389" width="366" height="108" rx="14" fill="#142431"/>
+  <text x="70" y="421" class="label">QEMU EXECUTION EVIDENCE</text>
+  <text x="70" y="452" class="body">Model, dataset and firmware hashes</text>
+  <text x="70" y="478" class="body">Complete records + prediction checks</text>
+  <rect x="457" y="384" width="315" height="125" rx="14" fill="#133c3a" stroke="#398b80"/>
+  <text x="479" y="419" class="heading">QEMU execution</text>
+  <text x="479" y="450" class="body">Boot, inference, prediction checks</text>
+  <text x="479" y="480" class="code">Validated in CI</text>
+  <rect x="807" y="384" width="345" height="125" rx="14" fill="#302d25" stroke="#7b6b47"/>
+  <text x="829" y="419" class="heading">Physical board</text>
+  <text x="829" y="450" class="body">Serial profiling + real peripherals</text>
+  <text x="829" y="480" font-size="15" fill="#e7c982">Hardware validation pending</text>
+  <text x="48" y="546" class="label">EMULATOR EXECUTION DOES NOT ESTABLISH DEVICE LATENCY, POWER OR TASK ACCURACY.</text>
+</svg>

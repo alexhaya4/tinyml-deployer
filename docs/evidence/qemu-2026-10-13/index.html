@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TinyML Deployer | QEMU validation evidence</title><style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7f3;color:#19352c;font:16px/1.55 system-ui,sans-serif}
+main{max-width:1160px;margin:auto;padding:40px 36px}header{border-bottom:1px solid #ccd8d0;padding-bottom:24px}
+.eyebrow{font-size:12px;font-weight:650;letter-spacing:2px;color:#506c61;text-transform:uppercase}
+h1{font-size:40px;line-height:1.15;letter-spacing:-1.3px;margin:18px 0 12px}p{margin:10px 0}
+.lede{max-width:850px;font-size:17px;color:#52675f}.meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.tag{background:#e6eee8;border:1px solid #cad8ce;border-radius:5px;padding:5px 10px;font-size:12px}
+.notice{margin:22px 0;background:#fff8e7;border-left:3px solid #b28a31;padding:14px 18px;font-size:14px;color:#675020}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.card{border:1px solid #ccd9d0;border-radius:12px;background:white;padding:24px}
+.card-head{display:flex;align-items:center;justify-content:space-between}h2{font-size:17px;margin:0;letter-spacing:.5px}
+.status{background:#def4e8;color:#126544;font-size:11px;font-weight:750;border-radius:4px;padding:4px 9px;letter-spacing:1px}
+.observations{font-size:52px;line-height:1.2;font-weight:650;margin-top:18px;letter-spacing:-2px}
+.observations span{font-size:14px;font-weight:400;letter-spacing:0;margin-left:8px;color:#52675f}.muted{font-size:13px;color:#52675f}
+dl{margin:22px 0 18px}dl div{display:flex;justify-content:space-between;gap:12px;border-top:1px solid #e7ede8;padding:9px 0;font-size:13px}
+dd{margin:0;font-variant-numeric:tabular-nums;font-weight:600}a{color:#066c59;text-underline-offset:3px;font-size:13px}
+.scope{margin-top:22px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;background:#eaf0eb;border-radius:10px;padding:20px 24px}
+.scope h2{font-size:14px}.scope p{font-size:13px;margin-bottom:0;color:#52675f}
+footer{margin-top:24px;border-top:1px solid #ccd8d0;padding-top:18px;color:#52675f;font-size:12px;overflow-wrap:anywhere}
+details{margin-top:14px}summary{cursor:pointer}table{border-collapse:collapse;width:100%;font-size:12px;margin:12px 0}th,td{text-align:left;padding:10px;border-bottom:1px solid #ccd8d0}code{overflow-wrap:anywhere}
+@media(max-width:700px){main{padding:24px 18px}h1{font-size:30px}.grid,.scope{grid-template-columns:1fr}.observations span{display:block;margin:4px 0}}
+</style></head><body><main><header>
+<div class="eyebrow">tinyml-deployer / execution evidence</div>
+<h1>Compiled firmware. Checked predictions.</h1>
+<p class="lede">ESP32-S3 firmware executed under Espressif QEMU. These values come directly from archived GitHub Actions reports.</p>
+<div class="meta"><span class="tag">ESP32-S3</span><span class="tag">ESP-IDF v5.5.1</span>
+<span class="tag">QEMU emulator version 9.2.2 (esp_develop_9.2.2_20260417)</span><span class="tag">2026-10-13</span></div></header>
+<div class="notice"><strong>Emulator evidence.</strong> Physical board validation has not run. These results do not establish device latency, power consumption or task accuracy.</div>
+<section class="grid"><article class="card"><div class="card-head"><h2>FLOAT32</h2>
+<span class="status">PASS</span></div><div class="observations">24
+<span>validated observations</span></div><p class="muted">8 samples, 3 repetitions each</p>
+<dl><div><dt>Maximum prediction error</dt><dd>8.9406967e-08</dd></div>
+<div><dt>Configured error limit</dt><dd>0.0001</dd></div>
+<div><dt>Application binary</dt><dd>332,928 bytes</dd></div>
+<div><dt>ESP-NN optimizations</dt><dd>Enabled</dd></div></dl>
+<a href="float32.json">Inspect original JSON report</a></article><article class="card"><div class="card-head"><h2>INT8</h2>
+<span class="status">PASS</span></div><div class="observations">24
+<span>validated observations</span></div><p class="muted">8 samples, 3 repetitions each</p>
+<dl><div><dt>Maximum prediction error</dt><dd>0</dd></div>
+<div><dt>Configured error limit</dt><dd>0.02</dd></div>
+<div><dt>Application binary</dt><dd>321,520 bytes</dd></div>
+<div><dt>ESP-NN optimizations</dt><dd>Enabled</dd></div></dl>
+<a href="int8.json">Inspect original JSON report</a></article></section>
+<section class="scope"><div><h2>What passed</h2><p>Startup, model initialization, complete inference records and numerical agreement with each graph's desktop TFLite output.</p></div>
+<div><h2>How to interpret the two results</h2><p>The float32 dense graph and INT8 convolutional graph are different fixtures. Their sizes and errors are not a quantization comparison.</p></div></section>
+<footer>Source: <a href="https://github.com/alexhaya4/tinyml-deployer/actions/runs/38444732537">GitHub Actions run 38444732537</a> | 
+commit <code>71612ef0016fdcc61e271b842777dcd57696a3fd</code><br>Documentation view of archived reports. The original JSON files retain all records, hashes and emulator timing fields.
+<details><summary>Model identities and provenance</summary><table><tbody><tr><th>FLOAT32</th><td><code>38a24be6c8b3544988913bcb00d08951b2500b69047d2e245365915e18b41a00</code></td></tr><tr><th>INT8</th><td><code>c0c7c495fb8ebeebbdc69e39c58286879ee03694dcac5878c8237ae15566c061</code></td></tr></tbody></table>
+<a href="provenance.json">Artifact IDs and SHA-256 checksums</a></details></footer>
+</main></body></html>

@@ -1,0 +1,16 @@
+{
+  "source": "docs/evidence/qemu-2026-10-13/index.html",
+  "viewport": {
+    "width": 1280,
+    "height": 960
+  },
+  "device_scale_factor": 1,
+  "playwright": "1.51.1",
+  "chromium": "134.0.6998.35",
+  "full_page": true,
+  "horizontal_overflow_checked_at_widths": [
+    390,
+    768,
+    1280
+  ]
+}
