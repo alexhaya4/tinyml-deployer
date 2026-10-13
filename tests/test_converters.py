@@ -1,155 +1,78 @@
-"""Tests for tinyml_deployer.converters."""
+"""Optional real ONNX conversion tests. CI installs the ONNX extra."""
 
-from __future__ import annotations
-
-import shutil
-import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
-from tinyml_deployer.converters import (
-    ConversionResult,
-    _check_onnx_deps,
-    convert_onnx_to_tflite,
-    ensure_tflite,
-    is_onnx_model,
-)
-from tests.conftest import SINE_MODEL_PATH
+from tinyml_deployer.converters import convert_onnx_to_tflite, ensure_tflite
+from tinyml_deployer.evaluation import interpreter_for, predict
+from tinyml_deployer.quantizer import quantize_model
 
 
-class TestIsOnnxModel:
-    """Test the is_onnx_model() helper."""
+@pytest.fixture
+def onnx_source(tmp_path):
+    onnx = pytest.importorskip("onnx")
+    # A missing optional extra may skip; a broken installed extra must fail.
+    import onnx2tf  # noqa: F401
+    from onnx import TensorProto, helper, numpy_helper
 
-    def test_tflite_returns_false(self) -> None:
-        assert is_onnx_model("model.tflite") is False
-
-    def test_onnx_returns_true(self) -> None:
-        assert is_onnx_model("model.onnx") is True
-
-    def test_onnx_uppercase(self) -> None:
-        assert is_onnx_model("model.ONNX") is True
-
-    def test_other_extension_returns_false(self) -> None:
-        assert is_onnx_model("model.h5") is False
-
-    def test_no_extension_returns_false(self) -> None:
-        assert is_onnx_model("model") is False
-
-
-class TestEnsureTflite:
-    """Test the ensure_tflite() context manager."""
-
-    def test_tflite_passthrough(self, sine_model_path: str) -> None:
-        """A .tflite path should be yielded unchanged."""
-        with ensure_tflite(sine_model_path) as result:
-            assert result == sine_model_path
-
-    def test_unsupported_format_raises(self, tmp_path: Path) -> None:
-        """A non-.tflite, non-.onnx file should raise ValueError."""
-        bad_file = tmp_path / "model.h5"
-        bad_file.write_bytes(b"fake")
-        with pytest.raises(ValueError, match="Unsupported model format"):
-            with ensure_tflite(str(bad_file)):
-                pass
-
-    @patch("tinyml_deployer.converters.convert_onnx_to_tflite")
-    def test_onnx_calls_convert(
-        self,
-        mock_convert: MagicMock,
-        fake_onnx_path: str,
-    ) -> None:
-        """An .onnx path should trigger conversion."""
-        mock_convert.return_value = ConversionResult(
-            original_path=fake_onnx_path,
-            converted_path=SINE_MODEL_PATH,
-            original_format="onnx",
-            original_size_bytes=100,
-            converted_size_bytes=200,
-        )
-
-        with ensure_tflite(fake_onnx_path) as result:
-            assert result == SINE_MODEL_PATH
-        mock_convert.assert_called_once()
+    weights = np.array([[0.8], [-0.3]], np.float32)
+    graph = helper.make_graph(
+        [
+            helper.make_node("MatMul", ["input", "weight"], ["product"]),
+            helper.make_node("Sigmoid", ["product"], ["output"]),
+        ],
+        "conversion",
+        [helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 2])],
+        [helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 1])],
+        [numpy_helper.from_array(weights, "weight")],
+    )
+    model = helper.make_model(
+        graph, opset_imports=[helper.make_opsetid("", 13)], ir_version=9
+    )
+    path = tmp_path / "network.onnx"
+    onnx.save(model, path)
+    return str(path)
 
 
-class TestCheckOnnxDeps:
-    """Test _check_onnx_deps() import validation."""
-
-    def test_missing_onnx_raises(self) -> None:
-        """When onnx is not importable, a clear ImportError is raised."""
-        with patch.dict(sys.modules, {"onnx": None}):
-            with pytest.raises(ImportError, match="pip install tinyml-deployer"):
-                _check_onnx_deps()
-
-    def test_missing_onnx2tf_raises(self) -> None:
-        """When onnx2tf is not importable, a clear ImportError is raised."""
-        fake_onnx = MagicMock()
-        with patch.dict(sys.modules, {"onnx": fake_onnx, "onnx2tf": None}):
-            with pytest.raises(ImportError, match="pip install tinyml-deployer"):
-                _check_onnx_deps()
+def test_real_onnx_predictions(onnx_source, tmp_path):
+    ort = pytest.importorskip("onnxruntime")
+    result = convert_onnx_to_tflite(onnx_source, str(tmp_path / "converted"))
+    source = ort.InferenceSession(onnx_source, providers=["CPUExecutionProvider"])
+    target = interpreter_for(Path(result.converted_path).read_bytes())
+    for sample in np.linspace(-1, 1, 20, dtype=np.float32).reshape(10, 1, 2):
+        expected = source.run(None, {"input": sample})[0]
+        np.testing.assert_allclose(predict(target, sample), expected, atol=1e-6, rtol=0)
 
 
-class TestConvertOnnxToTflite:
-    """Test convert_onnx_to_tflite() with mocked onnx2tf."""
+def test_onnx_quantized_default_output_survives_cleanup(onnx_source):
+    data = np.linspace(-0.9, 0.9, 20, dtype=np.float32).reshape(10, 1, 2)
+    result = quantize_model(
+        onnx_source,
+        quantization_type="float16",
+        validation_samples=data,
+        max_abs_error=0.001,
+    )
+    assert Path(result.output_path) == Path(onnx_source).with_name(
+        "network_quant.tflite"
+    )
+    assert Path(result.output_path).is_file()
+    assert result.evaluation.passed
 
-    def test_file_not_found(self, tmp_path: Path) -> None:
-        with patch("tinyml_deployer.converters._check_onnx_deps"):
-            with pytest.raises(FileNotFoundError):
-                convert_onnx_to_tflite(
-                    str(tmp_path / "nonexistent.onnx"),
-                    str(tmp_path / "out"),
-                )
 
-    @patch("tinyml_deployer.converters._check_onnx_deps")
-    def test_successful_conversion(
-        self,
-        mock_check: MagicMock,
-        fake_onnx_path: str,
-        tmp_path: Path,
-    ) -> None:
-        """Mock onnx2tf.convert() and verify the result."""
-        out_dir = tmp_path / "converted"
-        sine_path = SINE_MODEL_PATH
+def test_context_cleans_intermediate_only(onnx_source):
+    with ensure_tflite(onnx_source) as path:
+        assert Path(path).is_file()
+    assert not Path(path).exists()
+    assert Path(onnx_source).is_file()
 
-        # Create a mock onnx2tf module
-        mock_onnx2tf = MagicMock()
 
-        def fake_convert(**kwargs: object) -> None:
-            out = Path(str(kwargs["output_folder_path"]))
-            out.mkdir(parents=True, exist_ok=True)
-            shutil.copy(sine_path, str(out / "model_float32.tflite"))
-
-        mock_onnx2tf.convert.side_effect = fake_convert
-
-        with patch.dict(sys.modules, {"onnx2tf": mock_onnx2tf}):
-            result = convert_onnx_to_tflite(fake_onnx_path, str(out_dir))
-
-        assert result.original_format == "onnx"
-        assert result.converted_path.endswith(".tflite")
-        assert Path(result.converted_path).exists()
-        assert result.original_size_bytes > 0
-        assert result.converted_size_bytes > 0
-
-    @patch("tinyml_deployer.converters._check_onnx_deps")
-    def test_conversion_no_output_raises(
-        self,
-        mock_check: MagicMock,
-        fake_onnx_path: str,
-        tmp_path: Path,
-    ) -> None:
-        """If onnx2tf produces no .tflite, a RuntimeError is raised."""
-        out_dir = tmp_path / "empty_out"
-        mock_onnx2tf = MagicMock()
-
-        def fake_convert(**kwargs: object) -> None:
-            out = Path(str(kwargs["output_folder_path"]))
-            out.mkdir(parents=True, exist_ok=True)
-            # Produce no .tflite file
-
-        mock_onnx2tf.convert.side_effect = fake_convert
-
-        with patch.dict(sys.modules, {"onnx2tf": mock_onnx2tf}):
-            with pytest.raises(RuntimeError, match="no .tflite file"):
-                convert_onnx_to_tflite(fake_onnx_path, str(out_dir))
+def test_existing_output_untouched(onnx_source, tmp_path):
+    out = tmp_path / "converted"
+    out.mkdir()
+    existing = out / "network.tflite"
+    existing.write_bytes(b"user artifact")
+    with pytest.raises(FileExistsError):
+        convert_onnx_to_tflite(onnx_source, str(out))
+    assert existing.read_bytes() == b"user artifact"

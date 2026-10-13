@@ -8,7 +8,8 @@ from pathlib import Path
 import numpy as np
 import tensorflow as tf
 
-from tinyml_deployer.targets import MCUTarget, get_target
+from tinyml_deployer.operators import RESOLVER_METHODS
+from tinyml_deployer.targets import get_target
 
 ARENA_OVERHEAD_FACTOR = 1.5
 
@@ -21,6 +22,8 @@ class TensorInfo:
     shape: list[int]
     dtype: str
     size_bytes: int
+    scales: list[float] = field(default_factory=list)
+    zero_points: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -42,11 +45,13 @@ class ModelAnalysis:
     warnings: list[str]
     fits_in_flash: bool
     fits_in_ram: bool
+    operator_versions: dict[str, list[int]] = field(default_factory=dict)
+    validation_level: str = "static_preflight"
 
 
 def _tensor_info_from_detail(detail: dict) -> TensorInfo:
     """Convert an interpreter tensor detail dict to TensorInfo."""
-    shape = list(detail["shape"])
+    shape = [int(v) for v in detail["shape"]]
     dtype = np.dtype(detail["dtype"])
     size_bytes = int(np.prod(shape)) * dtype.itemsize
     return TensorInfo(
@@ -54,6 +59,14 @@ def _tensor_info_from_detail(detail: dict) -> TensorInfo:
         shape=shape,
         dtype=str(dtype),
         size_bytes=size_bytes,
+        scales=[
+            float(v)
+            for v in detail.get("quantization_parameters", {}).get("scales", [])
+        ],
+        zero_points=[
+            int(v)
+            for v in detail.get("quantization_parameters", {}).get("zero_points", [])
+        ],
     )
 
 
@@ -103,8 +116,12 @@ def _estimate_total_macs(
     for op in ops_details:
         input_indices = [i for i in op.get("inputs", []) if i >= 0]
         output_indices = [i for i in op.get("outputs", []) if i >= 0]
-        input_tensors = [tensor_details[i] for i in input_indices if i in tensor_details]
-        output_tensors = [tensor_details[i] for i in output_indices if i in tensor_details]
+        input_tensors = [
+            tensor_details[i] for i in input_indices if i in tensor_details
+        ]
+        output_tensors = [
+            tensor_details[i] for i in output_indices if i in tensor_details
+        ]
         total += _estimate_macs_for_op(op["op_name"], input_tensors, output_tensors)
     return total
 
@@ -142,26 +159,73 @@ def analyze_model(model_path: str, target_name: str) -> ModelAnalysis:
     warnings: list[str] = []
 
     # Load model
-    interpreter = tf.lite.Interpreter(model_path=str(path))
+    interpreter = tf.lite.Interpreter(
+        model_path=str(path),
+        experimental_op_resolver_type=tf.lite.experimental.OpResolverType.BUILTIN_WITHOUT_DEFAULT_DELEGATES,
+    )
     interpreter.allocate_tensors()
 
     # Extract input/output info
     inputs = [_tensor_info_from_detail(d) for d in interpreter.get_input_details()]
     outputs = [_tensor_info_from_detail(d) for d in interpreter.get_output_details()]
 
-    # Extract operators via private API (available since TF 2.5)
+    # Read the serialized graph, not desktop delegate-generated pseudo-ops.
+    from tensorflow.lite.python import schema_py_generated as schema
+
+    graph_model = schema.Model.GetRootAsModel(path.read_bytes(), 0)
+    graph = graph_model.Subgraphs(0)
+    names = {
+        v: k for k, v in vars(schema.BuiltinOperator).items() if isinstance(v, int)
+    }
+    operator_versions: dict[str, list[int]] = {}
     ops_details: list[dict] = []
     operators: list[str] = []
-    try:
-        ops_details = interpreter._get_ops_details()  # noqa: SLF001
-        operators = [op["op_name"] for op in ops_details]
-    except (AttributeError, KeyError):
-        warnings.append("Could not extract operator list (TF version may be too old)")
+    for i in range(graph.OperatorsLength()):
+        op = graph.Operators(i)
+        code = graph_model.OperatorCodes(op.OpcodeIndex())
+        name = names.get(code.BuiltinCode(), "UNKNOWN")
+        if code.CustomCode():
+            name = "CUSTOM:" + code.CustomCode().decode("utf-8", errors="replace")
+        operators.append(name)
+        operator_versions.setdefault(name, []).append(code.Version())
+        ops_details.append(
+            {
+                "op_name": name,
+                "inputs": op.InputsAsNumpy(),
+                "outputs": op.OutputsAsNumpy(),
+            }
+        )
+    operator_versions = {k: sorted(set(v)) for k, v in operator_versions.items()}
 
     # Check operator compatibility
-    supported_set = set(target.supported_ops)
+    supported_set = set(RESOLVER_METHODS)
     unsupported_ops = sorted({op for op in operators if op not in supported_set})
-    compatible = len(unsupported_ops) == 0
+    compatible = bool(operators) and len(unsupported_ops) == 0
+    if graph_model.Version() != 3 or graph_model.SubgraphsLength() != 1:
+        compatible = False
+        warnings.append("Firmware supports schema 3 with one subgraph only.")
+    if len(inputs) != 1 or len(outputs) != 1:
+        compatible = False
+        warnings.append("Firmware requires exactly one input and one output.")
+    if any(
+        t.dtype not in {"float32", "int8", "uint8", "int16", "int32"}
+        for t in inputs + outputs
+    ):
+        compatible = False
+        warnings.append("Unsupported firmware input/output dtype.")
+    for i in range(graph.TensorsLength()):
+        tensor = graph.Tensors(i)
+        if tensor.IsVariable() or any(
+            tensor.Shape(j) <= 0 for j in range(tensor.ShapeLength())
+        ):
+            compatible = False
+            warnings.append(
+                "Variable tensors and unresolved dimensions are not supported."
+            )
+            break
+    warnings.append(
+        "Static preflight only: Micro kernel version/type support and arena allocation require runtime validation."
+    )
 
     if unsupported_ops:
         warnings.append(
@@ -174,6 +238,10 @@ def analyze_model(model_path: str, target_name: str) -> ModelAnalysis:
 
     fits_in_flash = flash_usage_bytes <= target.flash_kb * 1024
     fits_in_ram = tensor_arena_bytes <= target.ram_kb * 1024
+    compatible = compatible and fits_in_flash and fits_in_ram
+    warnings.append(
+        "Flash counts model bytes only; arena is a heuristic. Linker output and device measurements determine actual fit."
+    )
 
     if not fits_in_flash:
         warnings.append(
@@ -212,4 +280,5 @@ def analyze_model(model_path: str, target_name: str) -> ModelAnalysis:
         warnings=warnings,
         fits_in_flash=fits_in_flash,
         fits_in_ram=fits_in_ram,
+        operator_versions=operator_versions,
     )

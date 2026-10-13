@@ -1,253 +1,130 @@
 [![CI](https://github.com/alexhaya4/tinyml-deployer/actions/workflows/ci.yml/badge.svg)](https://github.com/alexhaya4/tinyml-deployer/actions/workflows/ci.yml)
-[![PyPI version](https://img.shields.io/pypi/v/tinyml-deployer)](https://pypi.org/project/tinyml-deployer/)
-[![Python version](https://img.shields.io/pypi/pyversions/tinyml-deployer)](https://pypi.org/project/tinyml-deployer/)
-[![License](https://img.shields.io/pypi/l/tinyml-deployer)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 # tinyml-deployer
 
-A Python CLI tool for deploying TensorFlow Lite models to ESP32 and STM32 microcontrollers.
+Validate and quantize small neural networks, generate ESP-IDF inference firmware, and collect measurements from a connected device.
 
-## Features
+The 0.2 development workflow adds prediction error gates, model-specific C++ operator registration, explicit memory reservations, and serial profiling. It replaces the earlier TFLite reconstruction and incomplete STM32 scaffolding. Install this version from source; the published 0.1 release has a different interface.
 
-- **Model analysis** -- check model compatibility with target MCU constraints (flash, RAM, supported ops)
-- **ONNX model support** -- automatically convert `.onnx` models to TFLite before processing
-- **Post-training quantization** -- quantize models to int8, float16, or dynamic range for smaller size
-- **C code generation** -- convert models to C byte arrays and generate TFLite Micro inference wrappers
-- **Project scaffolding** -- generate complete ESP-IDF or STM32 build projects ready to compile and flash
-- **Performance benchmarking** -- estimate latency, throughput, and utilization across all targets
+## What gets checked
 
-## Supported Targets
+| Stage | Evidence produced | What still needs checking |
+| --- | --- | --- |
+| Analyze | Serialized operators and versions, tensor shapes, dtypes, nominal memory estimates | Micro kernel dtype/version support and actual memory allocation |
+| Quantize | Float TFLite baseline versus candidate predictions on supplied samples | Task accuracy and whether the dataset represents deployment conditions |
+| Generate | C++ wrapper, exact resolver registrations, validation vectors, deployment manifest | Compilation with the pinned toolchain |
+| Build | ESP-IDF linker and partition size checks | Execution on the intended board |
+| Profile | Device latency, arena usage, minimum free heap, prediction agreement | Application behavior under its real workload |
 
-| Target   | Arch    | Flash (KB) | RAM (KB) | Clock (MHz) | FPU | Framework   |
-|----------|---------|-----------|----------|-------------|-----|-------------|
-| ESP32    | Xtensa  | 4096      | 520      | 240         | No  | ESP-IDF     |
-| ESP32-S3 | Xtensa  | 8192      | 512      | 240         | No  | ESP-IDF     |
-| ESP32-C3 | RISC-V  | 4096      | 400      | 160         | No  | ESP-IDF     |
-| ESP32-C6 | RISC-V  | 4096      | 512      | 160         | No  | ESP-IDF     |
-| STM32F4  | Cortex-M4 | 1024    | 192      | 168         | Yes | STM32CubeAI |
-| STM32H7  | Cortex-M7 | 2048    | 1024     | 480         | Yes | STM32CubeAI |
-
-## Installation
-
-Install from PyPI:
-
-```bash
-pip install tinyml-deployer
+```mermaid
+flowchart TD
+    A["Keras / SavedModel / ONNX"] --> Q["Quantize with error gate"]
+    D["Calibration and validation data"] --> Q
+    Q --> T["TFLite model"]
+    T --> G["Generate ESP-IDF project"]
+    D --> G
+    G --> B["Compile and flash"]
+    B --> P["Profile device and export report"]
 ```
 
-Or install from source for development:
+`benchmark` remains an analytical MAC-based estimate. It is not a measured benchmark. Flash capacities in the target registry are nominal board assumptions, and the arena estimate does not account precisely for Micro allocator or kernel scratch memory. Use linker output and device measurements to establish fit.
+
+## Install
+
+Use Python 3.11 or 3.12. TensorFlow is pinned to 2.19.1, including its matching TFLite schema APIs. Firmware targets ESP-IDF 5.5.1 and `espressif/esp-tflite-micro` 1.4.1 with ESP-NN 1.4.1.
 
 ```bash
 git clone https://github.com/alexhaya4/tinyml-deployer.git
 cd tinyml-deployer
-pip install -e ".[dev]"
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -e '.[dev]'
+# Optional ONNX conversion:
+python -m pip install -e '.[dev,onnx]'
 ```
 
-## Quick Start
+Install and export [ESP-IDF 5.5.1](https://docs.espressif.com/projects/esp-idf/en/v5.5.1/esp32s3/get-started/index.html) in the build shell. Then run `tinyml-deployer doctor --report environment.json` to check the build tools and Python dependencies. Add `--onnx` to check conversion dependencies. A failed check exits nonzero. The Python CLI environment and IDF's Python environment may be separate; use the CLI's absolute executable path when necessary.
 
-Full workflow from training a model to generating a deployment project:
+## Reproducible workflow
+
+The included [sine example](examples/sine_model/README.md) trains a mathematical function approximation and saves the original Keras model plus separate calibration and validation arrays. It is an integration example, not a real-world accuracy or hardware performance claim.
 
 ```bash
-# 1. Train a sine wave model (included example)
-python examples/sine_model/train.py
+python examples/sine_model/train.py --output sine_artifacts
 
-# 2. Analyze the model for your target
-tinyml-deployer analyze examples/sine_model/sine_model.tflite --target esp32
+tinyml-deployer quantize sine_artifacts/sine.keras \
+  --type int8 --calibration sine_artifacts/calibration.npy \
+  --validation sine_artifacts/validation.npy --max-abs-error 0.05 \
+  --output sine_artifacts/sine_int8.tflite --report quantization.json
 
-# 3. Quantize the model (optional, for larger models)
-tinyml-deployer quantize examples/sine_model/sine_model.tflite --type int8
+tinyml-deployer analyze sine_artifacts/sine_int8.tflite --target esp32s3
 
-# 4. Compare performance across all targets
-tinyml-deployer benchmark examples/sine_model/sine_model.tflite --compare
+tinyml-deployer deploy sine_artifacts/sine_int8.tflite --target esp32s3 \
+  --arena-size 65536 --validation sine_artifacts/validation.npy \
+  --max-abs-error 0.01 --repetitions 10 --output sine_project
 
-# 5. Generate a complete ESP-IDF project
-tinyml-deployer deploy examples/sine_model/sine_model.tflite --target esp32 --output my_project
-
-# 6. Build and flash (requires ESP-IDF toolchain)
-cd my_project
-idf.py set-target esp32
+cd sine_project
+idf.py set-target esp32s3
 idf.py build
-idf.py -p /dev/ttyUSB0 flash monitor
+idf.py -p /dev/ttyUSB0 flash
+# Close any serial monitor before profiling.
+tinyml-deployer profile --port /dev/ttyUSB0 \
+  --manifest deployment.json --report device-results.html
 ```
 
-## ONNX Support
+The two error limits serve different purposes: quantization compares the quantized model to a float TFLite baseline, while device profiling compares firmware predictions to desktop execution of that same deployed model. Choose limits for your model's output units. A failed quantization gate writes no model. A complete device run that fails prediction agreement still writes its report and exits nonzero.
 
-tinyml-deployer can accept ONNX models (`.onnx`) in addition to TFLite (`.tflite`).
-ONNX models are automatically converted to TFLite format before processing.
+All generated output files and project directories must be new. Existing artifacts are preserved. Training also requires a new output directory.
 
-Install with the ONNX extra:
+## Input data and supported models
+
+- Quantization accepts original `.keras`, TensorFlow SavedModel directories, or `.onnx` sources. It does not reverse-engineer `.tflite` graphs.
+- INT8 requires representative calibration data. Dynamic-range and float16 quantization still require validation samples and an error limit. Micro support varies by kernel and dtype; successful desktop conversion alone does not establish device compatibility.
+- Analysis, estimated benchmarking, and deployment accept `.tflite` or `.onnx`. ONNX conversion uses a pinned optional dependency set. Conversion tests compare real ONNX Runtime and TFLite predictions. Check your own model's source-to-TFLite equivalence, including layout and preprocessing, before deployment.
+- Data files are non-pickled `.npy` floating-point arrays in preprocessed model input units. Shape is `[N, *input_shape]`, including the model's batch dimension. A model with input `[1, 32, 32, 3]` needs data shaped `[N, 1, 32, 32, 3]`. INT8 tensors are encoded with the model's scale and zero point.
+- Generation currently requires one input, one output, one subgraph, fixed concrete shapes, no variable tensors, and registered built-in operators. The generated wrapper checks buffer lengths and runtime errors. Calls must be externally serialized.
+- `esp32s3` is the reference firmware build target. ESP32, ESP32-C3 and ESP32-C6 generation paths need separate toolchain and board validation. STM32F4 and STM32H7 retain analysis and estimates only; deployment rejects them until board startup, linker and runtime integration are implemented and verified.
+
+## Reports and commands
+
+| Command | Purpose |
+| --- | --- |
+| `analyze MODEL --target TARGET` | Static preflight, including operator versions in the Python result |
+| `quantize SOURCE --validation DATA --max-abs-error LIMIT ...` | Quantize with a numerical gate; optional `--report` |
+| `evaluate REFERENCE CANDIDATE --validation DATA --max-abs-error LIMIT --report PATH` | Compare two TFLite models using MAE, RMSE and maximum error |
+| `deploy MODEL --arena-size BYTES --validation DATA --max-abs-error LIMIT ...` | Generate C++ firmware and `deployment.json` |
+| `benchmark MODEL --compare` | Compare analytical estimates across nominal targets |
+| `doctor [--onnx] [--report PATH]` | Inspect installed dependencies and ESP32-S3 build tools |
+| `profile --port PORT --manifest PATH --report PATH` | Collect a complete device run with model/dataset identity checks |
+
+Reports support `.json` and standalone `.html`. Device reports include raw observations, median/p95/maximum latency, maximum numerical error, actual arena use and minimum free heap. Timing includes input copy, interpreter invocation and output copy; it excludes warm-up and serial output. A fresh run ID and model/dataset hashes reject stale or unrelated measurements. These checks establish traceability, not cryptographic attestation.
+
+`--flash-budget` controls the generated application partition, defaults to 1 MiB and must be aligned to 64 KiB. Validation vectors consume flash. `--arena-size` reserves static RAM; it is a user-supplied reservation, not a measured minimum. Generated manifests initially mark firmware build and hardware execution as `not_run`; compilation does not silently promote either field.
+
+## Project structure
+
+| Module | Responsibility |
+| --- | --- |
+| `analyzer.py`, `operators.py`, `targets.py` | Serialized model inspection, resolver mapping and nominal target profiles |
+| `converters.py`, `quantizer.py`, `evaluation.py` | Source conversion, quantization and prediction comparisons |
+| `codegen.py`, `deployer.py`, `templates/` | Checked C-callable C++ wrapper and ESP-IDF profiling application |
+| `profiler.py`, `reporting.py`, `doctor.py` | Serial measurements, portable reports and environment diagnostics |
+| `tests/`, `scripts/prepare_firmware_checks.py` | Behavioral tests, real conversion tests and firmware build inputs |
+
+## Development and remaining validation
 
 ```bash
-pip install tinyml-deployer[onnx]
-```
-
-All commands accept `.onnx` files transparently:
-
-```bash
-tinyml-deployer analyze my_model.onnx --target esp32
-tinyml-deployer quantize my_model.onnx --type int8
-tinyml-deployer benchmark my_model.onnx --compare
-tinyml-deployer deploy my_model.onnx --target esp32 --output my_project
-```
-
-The conversion uses [onnx2tf](https://github.com/PINTO0309/onnx2tf) under the
-hood: `.onnx` -> TensorFlow SavedModel -> `.tflite`.
-
-## CLI Usage
-
-### Analyze
-
-Check a model's compatibility and memory requirements for a specific target:
-
-```
-$ tinyml-deployer analyze examples/sine_model/sine_model.tflite --target esp32
-
-Analyzing examples/sine_model/sine_model.tflite for esp32...
-
-                        Model Info
-+---------------------------------------------------------+
-| Path      | examples/sine_model/sine_model.tflite       |
-| Size      | 3.1 KB                                      |
-| Input     | serving_default_keras_tensor:0    (float32)  |
-| Output    | StatefulPartitionedCall_1:0    (float32)     |
-| Operators | DELEGATE, FULLY_CONNECTED                    |
-| Total ops | 4                                            |
-+---------------------------------------------------------+
-                Memory Estimates
-+----------------------------------------------+
-| Flash usage       | 3.1 KB  (limit: 4096 KB) |
-| Fits in flash     | Yes                       |
-| Tensor arena      | 2.1 KB  (limit: 520 KB)   |
-| Fits in RAM       | Yes                       |
-| Estimated MACs    | 288                       |
-| Estimated latency | 0.01 ms                   |
-+----------------------------------------------+
-```
-
-### Quantize
-
-Apply post-training quantization to reduce model size:
-
-```
-$ tinyml-deployer quantize examples/sine_model/sine_model.tflite --type int8
-
-Quantizing examples/sine_model/sine_model.tflite with int8 quantization...
-
-                        Quantization Result
-+-----------------------------------------------------------------+
-| Input model       | examples/sine_model/sine_model.tflite       |
-| Output model      | examples/sine_model/sine_model_quant.tflite |
-| Quantization type | int8                                        |
-| Original size     | 3.1 KB                                      |
-| Quantized size    | 3.3 KB                                      |
-| Compression ratio | 0.95x                                       |
-+-----------------------------------------------------------------+
-```
-
-Supported quantization types: `int8`, `float16`, `dynamic`.
-
-Note: very small models (like the 337-parameter sine model) may not shrink after
-quantization because the metadata overhead exceeds the savings from reduced
-precision. Quantization provides significant compression on larger models.
-
-### Deploy
-
-Generate a complete build project with model data, inference wrapper, and
-platform-specific scaffolding:
-
-```
-$ tinyml-deployer deploy examples/sine_model/sine_model.tflite --target esp32 --output sine_esp32_project
-
-Deploying examples/sine_model/sine_model.tflite for esp32 to sine_esp32_project...
-
-                             Generated Files
-+-----------------------------------------------------------------------+
-| File                                   | Description                  |
-|----------------------------------------+------------------------------|
-| sine_esp32_project/main/model_data.h   | Model byte array header      |
-| sine_esp32_project/main/model_data.c   | Model byte array source      |
-| sine_esp32_project/main/inference.h    | Inference wrapper header     |
-| sine_esp32_project/main/inference.c    | Inference wrapper source     |
-| sine_esp32_project/CMakeLists.txt      | Root CMake project file      |
-| sine_esp32_project/main/CMakeLists.txt | Main component CMake file    |
-| sine_esp32_project/main/main.c         | Application entry point      |
-| sine_esp32_project/sdkconfig.defaults  | Default SDK configuration    |
-| sine_esp32_project/README.md           | Build and flash instructions |
-+-----------------------------------------------------------------------+
-
-Project generated at: sine_esp32_project
-```
-
-Supported targets: `esp32`, `esp32s3`, `esp32c3`, `esp32c6` (ESP-IDF projects), `stm32f4`, `stm32h7` (Makefile + HAL stubs).
-
-### Benchmark
-
-Estimate inference performance on a single target or compare across all targets:
-
-```
-$ tinyml-deployer benchmark examples/sine_model/sine_model.tflite --compare
-
-Benchmarking examples/sine_model/sine_model.tflite across all targets...
-
-                                     Target Comparison
-+---------------------------------------------------------------------------------------------+
-| Target  |   Clock | FPU | Latency (ms) | Throughput (inf/s) | Util % | Flash OK | RAM OK   |
-|---------+---------+-----+--------------+--------------------+--------+----------+----------|
-| stm32h7 | 480 MHz | Yes |       0.0012 |            833,333 | 0.0001 |   Yes    |  Yes     |
-| esp32s3 | 240 MHz | No  |       0.0048 |            208,333 | 0.0005 |   Yes    |  Yes     |
-| stm32f4 | 168 MHz | Yes |       0.0069 |            145,833 | 0.0007 |   Yes    |  Yes     |
-| esp32c6 | 160 MHz | No  |       0.0180 |             55,556 | 0.0018 |   Yes    |  Yes     |
-| esp32   | 240 MHz | No  |       0.0120 |             83,333 | 0.0012 |   Yes    |  Yes     |
-| esp32c3 | 160 MHz | No  |       0.0216 |             46,296 | 0.0022 |   Yes    |  Yes     |
-+---------------------------------------------------------------------------------------------+
-
-Total MACs per inference: 288
-```
-
-## Project Structure
-
-```
-tinyml_deployer/
-    __init__.py       # Package version
-    cli.py            # Click CLI entry point with all subcommands
-    converters.py     # ONNX-to-TFLite conversion (optional dependency)
-    analyzer.py       # TFLite model analysis (ops, memory, compatibility)
-    quantizer.py      # Post-training quantization (int8, float16, dynamic)
-    codegen.py        # C source generation (model data + inference wrapper)
-    deployer.py       # Full project scaffolding (ESP-IDF, STM32)
-    benchmark.py      # Performance estimation across targets
-    targets.py        # MCU target definitions and specs
-examples/
-    sine_model/
-        train.py          # Training script for the example model
-        sine_model.tflite # Pre-trained 3.1 KB sine wave model
-```
-
-## Development
-
-```bash
-git clone https://github.com/alexhaya4/tinyml-deployer.git
-cd tinyml-deployer
-pip install -e ".[dev]"
+python -m pip install -e '.[dev,onnx]'
+ruff check tinyml_deployer tests scripts examples
 pytest
-```
-
-### Building for PyPI
-
-```bash
 python -m build
-twine check dist/*
-twine upload dist/*   # when ready to publish
+python -m twine check dist/*
+python scripts/prepare_firmware_checks.py --output firmware_checks
 ```
 
-Dependencies: `tensorflow`, `numpy`, `click`, `rich`. See `pyproject.toml` for the full
-list and version constraints.
+CI tests Python 3.11/3.12, runs actual ONNX conversions, and compiles generated float32 and INT8 ESP32-S3 projects. The firmware check inputs are deterministic test graphs; their build artifacts are not evidence of measured device performance.
 
-## Contributing
+Hardware validation remains pending: run both builds on an ESP32-S3, record the board/flash configuration, collect profiling reports, and verify allocation failures and serial reconnect behavior. A motor-condition monitoring example requires an identified sensor setup, licensed recorded data, a subject/session-separated split and measured task metrics before it can be claimed as a supported application. STM32 firmware support also needs a concrete reference board and verified runtime integration.
 
-Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on
-forking the repo, setting up a dev environment, running tests, and submitting pull requests.
-
-## License
-
-MIT License. See [LICENSE](LICENSE) for details.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the validation workflow and [migration notes](docs/migration-0.2.md) for breaking changes. MIT licensed; see [LICENSE](LICENSE).

@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from tinyml_deployer.benchmark import BenchmarkResult, benchmark_all_targets, benchmark_model
 from tests.conftest import ALL_TARGET_NAMES
+from tinyml_deployer.benchmark import (
+    BenchmarkResult,
+    benchmark_all_targets,
+    benchmark_model,
+)
 
 
 class TestBenchmarkModel:
@@ -44,7 +48,7 @@ class TestBenchmarkModel:
         result = benchmark_model(sine_model_path, "esp32")
         assert result.clock_mhz == 240
         assert result.cycles_per_mac == 10
-        assert result.fpu is False
+        assert result.fpu is True
 
 
 class TestBenchmarkAllTargets:
@@ -77,5 +81,11 @@ class TestBenchmarkAllTargets:
     def test_riscv_slower_than_xtensa(self, sine_model_path: str) -> None:
         """ESP32-C3/C6 at 160 MHz should be slower than ESP32-S3 at 240 MHz."""
         results = {r.target_name: r for r in benchmark_all_targets(sine_model_path)}
-        assert results["esp32c3"].estimated_latency_ms > results["esp32s3"].estimated_latency_ms
-        assert results["esp32c6"].estimated_latency_ms > results["esp32s3"].estimated_latency_ms
+        assert (
+            results["esp32c3"].estimated_latency_ms
+            > results["esp32s3"].estimated_latency_ms
+        )
+        assert (
+            results["esp32c6"].estimated_latency_ms
+            > results["esp32s3"].estimated_latency_ms
+        )

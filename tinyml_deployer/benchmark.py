@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from tinyml_deployer.analyzer import ModelAnalysis, analyze_model
-from tinyml_deployer.targets import MCUTarget, TARGETS, get_target
+from tinyml_deployer.targets import TARGETS, MCUTarget, get_target
 
 
 @dataclass
@@ -77,9 +77,11 @@ def _build_result(analysis: ModelAnalysis, target: MCUTarget) -> BenchmarkResult
         latency_s = total_macs / peak_mac_per_sec
         latency_ms = latency_s * 1000.0
         throughput = 1.0 / latency_s if latency_s > 0 else 0.0
-        # Utilization: fraction of peak compute the model would consume
-        # if run back-to-back at 100 % duty cycle.
-        utilization = (total_macs / peak_mac_per_sec) * 100.0 if peak_mac_per_sec > 0 else 0.0
+        # Estimated duty cycle at one inference per second, not measured
+        # utilization. This legacy field is kept for API compatibility.
+        utilization = (
+            (total_macs / peak_mac_per_sec) * 100.0 if peak_mac_per_sec > 0 else 0.0
+        )
     else:
         latency_ms = 0.0
         throughput = 0.0

@@ -1,4 +1,14 @@
-"""MCU target definitions for supported microcontrollers."""
+"""Nominal MCU profiles; capacities and cycle coefficients are not measured budgets.
+
+FPU references:
+https://documentation.espressif.com/esp32_datasheet_en.html
+https://documentation.espressif.com/esp32_s3_datasheet_en.pdf
+
+`supported_ops` is retained for API compatibility. Firmware registration uses
+operators.RESOLVER_METHODS; neither list proves kernel version/dtype support.
+"""
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 
@@ -22,7 +32,8 @@ ESP32 = MCUTarget(
     flash_kb=4096,
     ram_kb=520,
     clock_mhz=240,
-    fpu=False,
+    # Single-precision FPU: Espressif ESP32 series datasheet, CPU section.
+    fpu=True,
     framework="ESP-IDF",
     cycles_per_mac=10,
     supported_ops=[
@@ -45,7 +56,8 @@ ESP32S3 = MCUTarget(
     flash_kb=8192,
     ram_kb=512,
     clock_mhz=240,
-    fpu=False,
+    # Single-precision FPU: Espressif ESP32-S3 series datasheet, CPU section.
+    fpu=True,
     framework="ESP-IDF",
     cycles_per_mac=4,
     supported_ops=[

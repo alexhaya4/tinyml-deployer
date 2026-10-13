@@ -1,3 +1,5 @@
+> Historical version 0.1 launch article. Commands, compatibility and performance claims below do not describe the current development version. Use [the current README](../README.md) and [migration notes](migration-0.2.md).
+
 # From Training to MCU: Building a TinyML Deployment Pipeline
 
 **Author: Alex Odhiambo Haya**

@@ -1,181 +1,69 @@
-"""Post-training quantization for TFLite models."""
+"""Quantize source graphs and enforce a supplied numerical error budget."""
 
 from __future__ import annotations
 
-import os
 import tempfile
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 import tensorflow as tf
 
+from tinyml_deployer.evaluation import EvaluationResult, compare_models, interpreter_for
+from tinyml_deployer.io_utils import write_new_file
+
 
 @dataclass
 class QuantizationResult:
-    """Results from quantizing a TFLite model."""
-
     original_size: int
     quantized_size: int
     compression_ratio: float
     quantization_type: str
     output_path: str
+    evaluation: EvaluationResult
 
 
-def _default_representative_dataset(
-    input_shape: list[int],
-    num_samples: int = 100,
-) -> Callable[[], object]:
-    """Create a representative dataset generator from random samples."""
-
-    def generator() -> object:
-        for _ in range(num_samples):
-            yield [np.random.uniform(-1.0, 1.0, size=input_shape).astype(np.float32)]
-
-    return generator
-
-
-def _run_dummy_inference(interpreter: tf.lite.Interpreter) -> None:
-    """Run a single forward pass so all tensor buffers are populated."""
-    input_detail = interpreter.get_input_details()[0]
-    dummy = np.zeros(input_detail["shape"], dtype=input_detail["dtype"])
-    interpreter.set_tensor(input_detail["index"], dummy)
-    interpreter.invoke()
-
-
-def _rebuild_keras_model(interpreter: tf.lite.Interpreter) -> tf.keras.Model:
-    """Rebuild a Keras Sequential model from TFLite interpreter weights.
-
-    Uses the interpreter's ops details to find FULLY_CONNECTED layers and
-    extract their weight/bias tensors. The interpreter must already have
-    allocate_tensors() and invoke() called.
-    """
-    input_shape = list(interpreter.get_input_details()[0]["shape"])
-
-    # Get FC layers from ops details
-    try:
-        ops = interpreter._get_ops_details()  # noqa: SLF001
-    except AttributeError:
-        raise RuntimeError(
-            "Cannot extract ops details from this TFLite model. "
-            "TF version may be too old."
-        )
-
-    fc_ops = [op for op in ops if op["op_name"] == "FULLY_CONNECTED"]
-    if not fc_ops:
-        raise ValueError(
-            "No FULLY_CONNECTED layers found. "
-            "Only Dense/fully-connected models are supported for re-quantization."
-        )
-
-    # For each FC op: inputs = [input_tensor, weight_tensor, bias_tensor]
-    # TFLite stores weights as (output_units, input_features).
-    layers_data: list[dict[str, np.ndarray | None]] = []
-    for op in fc_ops:
-        op_inputs = list(op.get("inputs", []))
-        weight_idx = op_inputs[1] if len(op_inputs) > 1 else -1
-        bias_idx = op_inputs[2] if len(op_inputs) > 2 else -1
-
-        weight: np.ndarray | None = None
-        bias: np.ndarray | None = None
-
-        if weight_idx >= 0:
-            try:
-                weight = interpreter.get_tensor(weight_idx).copy()
-            except ValueError:
-                pass
-
-        if bias_idx >= 0:
-            try:
-                bias = interpreter.get_tensor(bias_idx).copy()
-            except ValueError:
-                pass
-
-        layers_data.append({"weight": weight, "bias": bias})
-
-    # Build matching Keras Sequential model
-    model = tf.keras.Sequential()
-    model.add(tf.keras.layers.InputLayer(shape=input_shape[1:]))
-
-    for i, ld in enumerate(layers_data):
-        w = ld["weight"]
-        if w is None:
-            raise ValueError(f"Could not read weight tensor for FC layer {i}")
-
-        # TFLite weight shape: (output_units, input_features)
-        units = w.shape[0]
-        is_last = i == len(layers_data) - 1
-        activation = None if is_last else "relu"
-        has_bias = ld["bias"] is not None
-
-        model.add(tf.keras.layers.Dense(
-            units,
-            activation=activation,
-            use_bias=has_bias,
-        ))
-
-    model.build(input_shape=[None] + input_shape[1:])
-
-    # Copy weights from interpreter into the Keras layers
-    dense_layers = [
-        layer for layer in model.layers
-        if isinstance(layer, tf.keras.layers.Dense)
-    ]
-    for i, layer in enumerate(dense_layers):
-        w = layers_data[i]["weight"]
-        b = layers_data[i]["bias"]
-        # Keras Dense expects kernel shape (input_features, output_units)
-        weights_to_set: list[np.ndarray] = [w.T]
-        if b is not None and layer.use_bias:
-            weights_to_set.append(b)
-        layer.set_weights(weights_to_set)
-
-    return model
-
-
-def _convert_from_tflite(
-    model_content: bytes,
-    quantization_type: str,
-    representative_dataset: Callable[[], object] | None,
-) -> bytes:
-    """Re-convert a TFLite model through a saved-model round-trip.
-
-    TFLite flatbuffers cannot be fed directly into TFLiteConverter, so we
-    rebuild a Keras model from the interpreter weights, export it as a
-    SavedModel, then convert with the requested quantization options.
-    """
-    interpreter = tf.lite.Interpreter(model_content=model_content)
-    interpreter.allocate_tensors()
-    _run_dummy_inference(interpreter)
-
-    input_shape = list(interpreter.get_input_details()[0]["shape"])
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        saved_model_dir = os.path.join(tmpdir, "saved_model")
-
-        keras_model = _rebuild_keras_model(interpreter)
-        keras_model.export(saved_model_dir)
-
-        converter = tf.lite.TFLiteConverter.from_saved_model(saved_model_dir)
-        converter.optimizations = [tf.lite.Optimize.DEFAULT]
-
-        if quantization_type == "int8":
-            if representative_dataset is None:
-                representative_dataset = _default_representative_dataset(input_shape)
-            converter.representative_dataset = representative_dataset
-            converter.target_spec.supported_ops = [
-                tf.lite.OpsSet.TFLITE_BUILTINS_INT8,
+@contextmanager
+def _source_graph(path: Path) -> Iterator[str]:
+    if path.is_dir() and (path / "saved_model.pb").is_file():
+        yield str(path)
+        return
+    with tempfile.TemporaryDirectory(prefix="tinyml_source_") as directory:
+        saved = Path(directory) / "saved_model"
+        if path.suffix.lower() == ".keras":
+            model = tf.keras.models.load_model(str(path), compile=False, safe_mode=True)
+            # Preserve explicitly fixed batch dimensions during Keras export.
+            signature = [
+                tf.TensorSpec(t.shape, t.dtype, name=t.name.split(":")[0])
+                for t in model.inputs
             ]
-            converter.inference_input_type = tf.int8
-            converter.inference_output_type = tf.int8
+            model.export(str(saved), input_signature=signature)
+        elif path.suffix.lower() == ".onnx":
+            from tinyml_deployer.converters import _check_onnx_deps
 
-        elif quantization_type == "float16":
-            converter.target_spec.supported_types = [tf.float16]
+            _check_onnx_deps()
+            import onnx
+            import onnx2tf
 
-        # dynamic: DEFAULT optimizations only (already set)
-
-        return converter.convert()
+            onnx.checker.check_model(str(path))
+            onnx2tf.convert(
+                input_onnx_file_path=str(path),
+                output_folder_path=str(saved),
+                non_verbose=True,
+                not_use_onnxsim=True,
+            )
+            if not (saved / "saved_model.pb").is_file():
+                raise ValueError(
+                    "ONNX converter did not produce the required SavedModel."
+                )
+        else:
+            raise ValueError(
+                "Quantization requires an original .keras, .onnx or SavedModel source. "
+                "Existing .tflite models can be analyzed and deployed, not reconstructed."
+            )
+        yield str(saved)
 
 
 def quantize_model(
@@ -183,57 +71,79 @@ def quantize_model(
     output_path: str | None = None,
     quantization_type: str = "int8",
     representative_dataset: Callable[[], object] | None = None,
+    *,
+    validation_samples: np.ndarray | None = None,
+    max_abs_error: float | None = None,
 ) -> QuantizationResult:
-    """Quantize a TFLite model using post-training quantization.
-
-    Args:
-        input_path: Path to the source .tflite file.
-        output_path: Where to write the quantized model. Defaults to
-            ``<name>_quant.tflite`` next to the original.
-        quantization_type: One of "int8", "float16", or "dynamic".
-        representative_dataset: Optional callable that yields representative
-            input samples (required for best int8 accuracy; a random default
-            is generated when *None*).
-
-    Returns:
-        QuantizationResult with size and compression information.
-
-    Raises:
-        FileNotFoundError: If *input_path* does not exist.
-        ValueError: If *quantization_type* is not recognized.
-    """
-    valid_types = {"int8", "float16", "dynamic"}
-    if quantization_type not in valid_types:
-        raise ValueError(
-            f"Unknown quantization type '{quantization_type}'. "
-            f"Choose from: {', '.join(sorted(valid_types))}"
-        )
-
+    if quantization_type not in {"int8", "float16", "dynamic"}:
+        raise ValueError(f"Unknown quantization type: {quantization_type}")
     src = Path(input_path)
     if not src.exists():
         raise FileNotFoundError(f"Model file not found: {input_path}")
-
-    if output_path is None:
-        output_path = str(src.with_name(f"{src.stem}_quant{src.suffix}"))
-
-    original_size = src.stat().st_size
-    model_content = src.read_bytes()
-
-    quantized_bytes = _convert_from_tflite(
-        model_content, quantization_type, representative_dataset
+    if validation_samples is None or max_abs_error is None:
+        raise ValueError(
+            "Supply validation samples and an explicit maximum absolute error."
+        )
+    if not np.isfinite(validation_samples).all() or len(validation_samples) == 0:
+        raise ValueError("Validation samples must be non-empty and finite.")
+    if not np.isfinite(max_abs_error) or max_abs_error < 0:
+        raise ValueError("Maximum absolute error must be finite and non-negative.")
+    if quantization_type == "int8" and representative_dataset is None:
+        raise ValueError("INT8 quantization requires representative calibration data.")
+    dst = (
+        Path(output_path) if output_path else src.with_name(src.stem + "_quant.tflite")
     )
+    if dst.exists():
+        raise FileExistsError(f"Output already exists: {dst}")
+    with _source_graph(src) as saved:
+        reference = tf.lite.TFLiteConverter.from_saved_model(saved).convert()
+        # Validate sample shapes and input count before running calibration.
+        baseline = interpreter_for(reference)
+        expected = tuple(baseline.get_input_details()[0]["shape"])
+        converter = tf.lite.TFLiteConverter.from_saved_model(saved)
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        if quantization_type == "int8":
 
-    dst = Path(output_path)
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_bytes(quantized_bytes)
+            def checked_calibration() -> Iterator[list[np.ndarray]]:
+                count = 0
+                for item in representative_dataset():
+                    if not isinstance(item, (list, tuple)) or len(item) != 1:
+                        raise ValueError(
+                            "Calibration must yield one input tensor per sample."
+                        )
+                    sample = np.asarray(item[0])
+                    if (
+                        sample.shape != expected
+                        or sample.dtype != np.float32
+                        or not np.isfinite(sample).all()
+                    ):
+                        raise ValueError(
+                            f"Calibration requires finite float32 tensors with shape {expected}."
+                        )
+                    count += 1
+                    yield [sample]
+                if count == 0:
+                    raise ValueError("Calibration dataset is empty.")
 
-    quantized_size = dst.stat().st_size
-    compression_ratio = original_size / quantized_size if quantized_size > 0 else 0.0
-
+            converter.representative_dataset = checked_calibration
+            converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+            converter.inference_input_type = tf.int8
+            converter.inference_output_type = tf.int8
+        elif quantization_type == "float16":
+            converter.target_spec.supported_types = [tf.float16]
+        candidate = converter.convert()
+    evaluation = compare_models(reference, candidate, validation_samples, max_abs_error)
+    if not evaluation.passed:
+        raise ValueError(
+            f"Quantization error {evaluation.max_absolute_error:.8g} exceeds "
+            f"the allowed {max_abs_error:.8g}; no model was written."
+        )
+    write_new_file(dst, candidate)
     return QuantizationResult(
-        original_size=original_size,
-        quantized_size=quantized_size,
-        compression_ratio=compression_ratio,
-        quantization_type=quantization_type,
-        output_path=str(dst),
+        len(reference),
+        len(candidate),
+        len(reference) / len(candidate),
+        quantization_type,
+        str(dst),
+        evaluation,
     )

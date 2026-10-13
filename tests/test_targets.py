@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from tinyml_deployer.targets import MCUTarget, TARGETS, get_target
 from tests.conftest import ALL_TARGET_NAMES
+from tinyml_deployer.targets import TARGETS, MCUTarget, get_target
 
 
 class TestGetTarget:

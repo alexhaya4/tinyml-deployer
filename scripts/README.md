@@ -1,34 +1,20 @@
-# scripts/
+# Developer scripts
 
-Utility scripts for the tinyml-deployer project.
+`prepare_firmware_checks.py --output DIRECTORY` creates two actual ESP-IDF projects for build validation: a float32 dense graph with ADD/MUL and nonlinear activations, and an INT8 CNN. Inputs are deterministic integration fixtures. No device results are generated.
 
-## record_demo.py
+```bash
+python scripts/prepare_firmware_checks.py --output firmware_checks
+# In a shell with ESP-IDF 5.5.1 exported:
+idf.py -C firmware_checks/float32_project set-target esp32s3
+idf.py -C firmware_checks/float32_project build
+idf.py -C firmware_checks/int8_project set-target esp32s3
+idf.py -C firmware_checks/int8_project build
+```
 
-Runs a live-style demo of the CLI commands with pauses between them. Intended
-to be recorded as a terminal screencast.
+The CI workflow runs these builds and preserves binaries, maps, manifests and dependency locks. Hardware measurements require flashing and the real `profile` command.
 
-### Recording with asciinema
+`record_demo.py` runs read-only analysis and analytical estimates with short pauses. It exits on command failure. To record actual output, install asciinema and run:
 
-1. Install asciinema:
-
-   ```bash
-   pip install asciinema
-   ```
-
-2. Record the demo:
-
-   ```bash
-   asciinema rec demo.cast -c "python scripts/record_demo.py"
-   ```
-
-3. Convert to GIF (requires [agg](https://github.com/asciinema/agg)):
-
-   ```bash
-   agg demo.cast demo.gif
-   ```
-
-   Or upload directly to asciinema.org:
-
-   ```bash
-   asciinema upload demo.cast
-   ```
+```bash
+asciinema rec demo.cast -c 'python scripts/record_demo.py'
+```
