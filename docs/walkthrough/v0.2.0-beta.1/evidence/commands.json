@@ -1,0 +1,129 @@
+[
+  {
+    "label": "version",
+    "argv": [
+      "/workspace/scratch/c078454c1106/tinyml-video-venv/bin/tinyml-deployer",
+      "--version"
+    ],
+    "started_utc": "2026-10-13T20:03:20.504035+00:00",
+    "duration_seconds": 0.066,
+    "exit_code": 0,
+    "stdout": "tinyml-deployer, version 0.2.0b1\n",
+    "stderr": ""
+  },
+  {
+    "label": "train",
+    "argv": [
+      "/workspace/scratch/c078454c1106/tinyml-video-venv/bin/python",
+      "/workspace/scratch/c078454c1106/tinyml-deployer/examples/sine_model/train.py",
+      "--output",
+      "sine",
+      "--epochs",
+      "50"
+    ],
+    "started_utc": "2026-10-13T20:03:20.570245+00:00",
+    "duration_seconds": 5.916,
+    "exit_code": 0,
+    "stdout": "Epoch 1/50: training loss 0.416543\nEpoch 2/50: training loss 0.696634\nEpoch 3/50: training loss 0.450040\nEpoch 4/50: training loss 0.323893\nEpoch 5/50: training loss 0.326220\nEpoch 6/50: training loss 0.362253\nEpoch 7/50: training loss 0.216956\nEpoch 8/50: training loss 0.249376\nEpoch 9/50: training loss 0.188018\nEpoch 10/50: training loss 0.383841\nEpoch 11/50: training loss 0.310816\nEpoch 12/50: training loss 0.239201\nEpoch 13/50: training loss 0.190858\nEpoch 14/50: training loss 0.151573\nEpoch 15/50: training loss 0.209351\nEpoch 16/50: training loss 0.297568\nEpoch 17/50: training loss 0.233429\nEpoch 18/50: training loss 0.239541\nEpoch 19/50: training loss 0.122314\nEpoch 20/50: training loss 0.122577\nEpoch 21/50: training loss 0.063010\nEpoch 22/50: training loss 0.125805\nEpoch 23/50: training loss 0.064979\nEpoch 24/50: training loss 0.143375\nEpoch 25/50: training loss 0.029775\nEpoch 26/50: training loss 0.097912\nEpoch 27/50: training loss 0.102505\nEpoch 28/50: training loss 0.063567\nEpoch 29/50: training loss 0.042651\nEpoch 30/50: training loss 0.245316\nEpoch 31/50: training loss 0.045872\nEpoch 32/50: training loss 0.257340\nEpoch 33/50: training loss 0.095812\nEpoch 34/50: training loss 0.229845\nEpoch 35/50: training loss 0.317198\nEpoch 36/50: training loss 0.274391\nEpoch 37/50: training loss 0.120741\nEpoch 38/50: training loss 0.099857\nEpoch 39/50: training loss 0.052949\nEpoch 40/50: training loss 0.204973\nEpoch 41/50: training loss 0.097572\nEpoch 42/50: training loss 0.147954\nEpoch 43/50: training loss 0.245699\nEpoch 44/50: training loss 0.215780\nEpoch 45/50: training loss 0.221422\nEpoch 46/50: training loss 0.026101\nEpoch 47/50: training loss 0.134753\nEpoch 48/50: training loss 0.120263\nEpoch 49/50: training loss 0.041967\nEpoch 50/50: training loss 0.055183\nSaved artifact at '/tmp/tmptghwfiqh'. The following endpoints are available:\n\n* Endpoint 'serve'\n  args_0 (POSITIONAL_ONLY): TensorSpec(shape=(None, 1), dtype=tf.float32, name='keras_tensor')\nOutput Type:\n  TensorSpec(shape=(None, 1), dtype=tf.float32, name=None)\nCaptures:\n  139805235806288: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  139805235808208: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  139805235809744: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  139805235806672: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  139805235809936: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  139805235807824: TensorSpec(shape=(), dtype=tf.resource, name=None)\nHeld-out function MSE: 0.146188; artifacts saved to sine\n",
+    "stderr": "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR\nE0000 00:00:1791921800.922968       6 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered\nE0000 00:00:1791921800.926131       6 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered\nW0000 00:00:1791921800.934221       6 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921800.934253       6 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921800.934255       6 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921800.934256       6 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nWARNING: All log messages before absl::InitializeLog() is called are written to STDERR\nW0000 00:00:1791921805.540427       6 tf_tfl_flatbuffer_helpers.cc:365] Ignored output_format.\nW0000 00:00:1791921805.540456       6 tf_tfl_flatbuffer_helpers.cc:368] Ignored drop_control_dependency.\nI0000 00:00:1791921805.543240       6 mlir_graph_optimization_pass.cc:425] MLIR V1 optimization pass is not enabled\n"
+  },
+  {
+    "label": "quantize",
+    "argv": [
+      "/workspace/scratch/c078454c1106/tinyml-video-venv/bin/tinyml-deployer",
+      "quantize",
+      "sine/sine.keras",
+      "--type",
+      "int8",
+      "--calibration",
+      "sine/calibration.npy",
+      "--validation",
+      "sine/validation.npy",
+      "--max-abs-error",
+      "0.05",
+      "--output",
+      "sine/sine_int8.tflite",
+      "--report",
+      "quantization.json"
+    ],
+    "started_utc": "2026-10-13T20:03:26.486823+00:00",
+    "duration_seconds": 4.134,
+    "exit_code": 0,
+    "stdout": "Saved artifact at '/tmp/tinyml_source_qp_hks5e/saved_model'. The following endpoints are available:\n\n* Endpoint 'serve'\n  args_0 (POSITIONAL_ONLY): TensorSpec(shape=(None, 1), dtype=tf.float32, name='input_layer')\nOutput Type:\n  TensorSpec(shape=(None, 1), dtype=tf.float32, name=None)\nCaptures:\n  140521181275792: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  140521181274640: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  140521181278672: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  140521181277520: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  140521181279248: TensorSpec(shape=(), dtype=tf.resource, name=None)\n  140521181279440: TensorSpec(shape=(), dtype=tf.resource, name=None)\n                 Quantization Result                  \n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Input model                \u2502 sine/sine.keras       \u2502\n\u2502 Output model               \u2502 sine/sine_int8.tflite \u2502\n\u2502 Quantization type          \u2502 int8                  \u2502\n\u2502 Float TFLite baseline size \u2502 3.1 KB                \u2502\n\u2502 Quantized size             \u2502 3.3 KB                \u2502\n\u2502 Compression ratio          \u2502 0.93x                 \u2502\n\u2502 Maximum prediction error   \u2502 0.019417894           \u2502\n\u2502 Validation samples         \u2502 65                    \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\nQuantized model is not smaller than the original.\n\n",
+    "stderr": "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR\nE0000 00:00:1791921806.878424      42 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered\nE0000 00:00:1791921806.881732      42 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered\nW0000 00:00:1791921806.891395      42 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921806.891429      42 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921806.891430      42 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921806.891432      42 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nWARNING: All log messages before absl::InitializeLog() is called are written to STDERR\nW0000 00:00:1791921809.459034      42 tf_tfl_flatbuffer_helpers.cc:365] Ignored output_format.\nW0000 00:00:1791921809.459075      42 tf_tfl_flatbuffer_helpers.cc:368] Ignored drop_control_dependency.\nI0000 00:00:1791921809.462987      42 mlir_graph_optimization_pass.cc:425] MLIR V1 optimization pass is not enabled\n/workspace/scratch/c078454c1106/tinyml-video-venv/lib/python3.12/site-packages/tensorflow/lite/python/interpreter.py:457: UserWarning:     Warning: tf.lite.Interpreter is deprecated and is scheduled for deletion in\n    TF 2.20. Please use the LiteRT interpreter from the ai_edge_litert package.\n    See the [migration guide](https://ai.google.dev/edge/litert/migration)\n    for details.\n    \n  warnings.warn(_INTERPRETER_DELETION_WARNING)\nW0000 00:00:1791921809.771563      42 tf_tfl_flatbuffer_helpers.cc:365] Ignored output_format.\nW0000 00:00:1791921809.771597      42 tf_tfl_flatbuffer_helpers.cc:368] Ignored drop_control_dependency.\nfully_quantize: 0, inference_type: 6, input_inference_type: INT8, output_inference_type: INT8\n"
+  },
+  {
+    "label": "analyze",
+    "argv": [
+      "/workspace/scratch/c078454c1106/tinyml-video-venv/bin/tinyml-deployer",
+      "analyze",
+      "sine/sine_int8.tflite",
+      "--target",
+      "esp32s3"
+    ],
+    "started_utc": "2026-10-13T20:03:30.620842+00:00",
+    "duration_seconds": 3.225,
+    "exit_code": 0,
+    "stdout": "\nAnalyzing sine/sine_int8.tflite for esp32s3...\n\n                         Model Info                          \n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Path      \u2502 sine/sine_int8.tflite                         \u2502\n\u2502 Size      \u2502 3.3 KB                                        \u2502\n\u2502 Input     \u2502 serving_default_input_layer:0  [1, 1]  (int8) \u2502\n\u2502 Output    \u2502 StatefulPartitionedCall_1:0  [1, 1]  (int8)   \u2502\n\u2502 Operators \u2502 FULLY_CONNECTED                               \u2502\n\u2502 Total ops \u2502 3                                             \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\n                    Memory Estimates                     \n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Model bytes only           \u2502 3.3 KB  (limit: 8192 KB) \u2502\n\u2502 Model below nominal flash  \u2502 Yes                      \u2502\n\u2502 Tensor arena               \u2502 681 B  (limit: 512 KB)   \u2502\n\u2502 Estimate below nominal RAM \u2502 Yes                      \u2502\n\u2502 Estimated MACs             \u2502 288                      \u2502\n\u2502 Estimated latency          \u2502 0.00 ms                  \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\n            Op Compatibility            \n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Target           \u2502 esp32s3 (ESP-IDF) \u2502\n\u2502 Static preflight \u2502 Yes               \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\n\u256d\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 Warnings \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256e\n\u2502   * Static preflight only: Micro kernel version/type support and arena allocation require        \u2502\n\u2502 runtime validation.                                                                              \u2502\n\u2502   * Flash counts model bytes only; arena is a heuristic. Linker output and device measurements   \u2502\n\u2502 determine actual fit.                                                                            \u2502\n\u2570\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u256f\n\n",
+    "stderr": "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR\nE0000 00:00:1791921810.963763      92 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered\nE0000 00:00:1791921810.966983      92 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered\nW0000 00:00:1791921810.975049      92 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921810.975073      92 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921810.975075      92 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921810.975076      92 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\n/workspace/scratch/c078454c1106/tinyml-video-venv/lib/python3.12/site-packages/tensorflow/lite/python/interpreter.py:457: UserWarning:     Warning: tf.lite.Interpreter is deprecated and is scheduled for deletion in\n    TF 2.20. Please use the LiteRT interpreter from the ai_edge_litert package.\n    See the [migration guide](https://ai.google.dev/edge/litert/migration)\n    for details.\n    \n  warnings.warn(_INTERPRETER_DELETION_WARNING)\n"
+  },
+  {
+    "label": "deploy",
+    "argv": [
+      "/workspace/scratch/c078454c1106/tinyml-video-venv/bin/tinyml-deployer",
+      "deploy",
+      "sine/sine_int8.tflite",
+      "--target",
+      "esp32s3",
+      "--arena-size",
+      "65536",
+      "--validation",
+      "sine/validation.npy",
+      "--max-abs-error",
+      "0.01",
+      "--repetitions",
+      "10",
+      "--output",
+      "sine_project"
+    ],
+    "started_utc": "2026-10-13T20:03:33.845992+00:00",
+    "duration_seconds": 3.476,
+    "exit_code": 0,
+    "stdout": "\nDeploying sine/sine_int8.tflite for esp32s3 to sine_project...\n\n                                          Generated Files                                           \n\u250f\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2533\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2513\n\u2503 File                                                             \u2503 Description                   \u2503\n\u2521\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2547\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2529\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2502 /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine\u2026 \u2502 Generated deployment artifact \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\n        Model Summary         \n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Model size       \u2502 3.3 KB  \u2502\n\u2502 Tensor arena     \u2502 681 B   \u2502\n\u2502 Target           \u2502 esp32s3 \u2502\n\u2502 Static preflight \u2502 Yes     \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\nProject generated at: /workspace/scratch/c078454c1106/tinyml-video-work/recorded/sine_project\n\n",
+    "stderr": "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR\nE0000 00:00:1791921814.215578     110 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered\nE0000 00:00:1791921814.219509     110 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered\nW0000 00:00:1791921814.227711     110 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921814.227742     110 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921814.227743     110 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\nW0000 00:00:1791921814.227744     110 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.\n/workspace/scratch/c078454c1106/tinyml-video-venv/lib/python3.12/site-packages/tensorflow/lite/python/interpreter.py:457: UserWarning:     Warning: tf.lite.Interpreter is deprecated and is scheduled for deletion in\n    TF 2.20. Please use the LiteRT interpreter from the ai_edge_litert package.\n    See the [migration guide](https://ai.google.dev/edge/litert/migration)\n    for details.\n    \n  warnings.warn(_INTERPRETER_DELETION_WARNING)\n"
+  },
+  {
+    "label": "emulate-float32",
+    "argv": [
+      "/workspace/scratch/c078454c1106/tinyml-video-venv/bin/tinyml-deployer",
+      "emulate",
+      "/workspace/scratch/c078454c1106/tinyml-video-work/firmware-float32-esp32s3",
+      "--qemu",
+      "/workspace/scratch/c078454c1106/tinyml-video-work/qemu/qemu/bin/qemu-system-xtensa",
+      "--report",
+      "float32.json"
+    ],
+    "started_utc": "2026-10-13T20:03:37.322363+00:00",
+    "duration_seconds": 1.07,
+    "exit_code": 0,
+    "stdout": "Emulator validation: 24 observations; maximum prediction error 8.9406967e-08.\nPhysical board validation remains pending; emulator timing is not hardware performance.\n",
+    "stderr": ""
+  },
+  {
+    "label": "emulate-int8",
+    "argv": [
+      "/workspace/scratch/c078454c1106/tinyml-video-venv/bin/tinyml-deployer",
+      "emulate",
+      "/workspace/scratch/c078454c1106/tinyml-video-work/firmware-int8-esp32s3",
+      "--qemu",
+      "/workspace/scratch/c078454c1106/tinyml-video-work/qemu/qemu/bin/qemu-system-xtensa",
+      "--report",
+      "int8.json"
+    ],
+    "started_utc": "2026-10-13T20:03:38.393108+00:00",
+    "duration_seconds": 1.112,
+    "exit_code": 0,
+    "stdout": "Emulator validation: 24 observations; maximum prediction error 0.\nPhysical board validation remains pending; emulator timing is not hardware performance.\n",
+    "stderr": ""
+  }
+]

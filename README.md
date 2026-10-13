@@ -12,7 +12,15 @@ A Python CLI that takes an original neural-network graph through quantization, p
 
 [Get started](#get-started) · [Verified results](#verified-results) · [Use QEMU](#test-without-a-board) · [Model requirements](#model-requirements) · [Architecture](#architecture) · [Migration guide](docs/migration-0.2.md)
 
-> **Current status:** 0.2 development version, installed from source. ESP32-S3 float32 and INT8 firmware builds and QEMU execution are verified in CI. Physical-board validation remains pending. The published 0.1 package has a different interface.
+> **Current status:** `v0.2.0-beta.1` (`0.2.0b1`), installed from source. ESP32-S3 float32 and INT8 firmware builds and QEMU execution are verified in CI. Physical-board validation remains pending. The published 0.1 package has a different interface.
+
+## Watch the walkthrough
+
+[![Animated preview of recorded TinyML commands: quantization, C++ generation and ESP32-S3 QEMU validation.](docs/walkthrough/v0.2.0-beta.1/preview.gif)](docs/walkthrough/v0.2.0-beta.1/walkthrough.mp4)
+
+**[Watch the 54-second MP4](docs/walkthrough/v0.2.0-beta.1/walkthrough.mp4)** · [Static poster](docs/walkthrough/v0.2.0-beta.1/poster.png) · [Transcript and reproduction](docs/walkthrough/v0.2.0-beta.1/README.md) · [Beta release notes](docs/releases/v0.2.0-beta.1.md)
+
+*Captioned, silent replay of real CLI output. The sine conversion example and the two compiled CI emulator fixtures are identified separately. Animation timing is edited; physical-board validation is pending.*
 
 ## Why this project
 

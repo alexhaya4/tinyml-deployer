@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tinyml-deployer"
-version = "0.2.0.dev0"
+version = "0.2.0b1"
 description = "Validate and quantize models, generate ESP-IDF firmware, and profile TinyML inference"
 readme = "README.md"
 license = "MIT"
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["tinyml", "tflite", "esp32", "stm32", "microcontroller", "edge-ai", "deployment"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Software Development :: Embedded Systems",

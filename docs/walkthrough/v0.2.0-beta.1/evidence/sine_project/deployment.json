@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "model_sha256": "6b0a5b3ba99f39d3ab265cab345e4028496031bb6dcaacd999495bc095016ddd",
+  "dataset_sha256": "be5f5e7e13476ea783af97822d36da04c6636917eab299051435562671e22e25",
+  "target": "esp32s3",
+  "esp_idf_version": "5.5.1",
+  "micro_version": "1.4.1",
+  "esp_nn_version": "1.4.1",
+  "arena_reserved_bytes": 65536,
+  "app_flash_budget_bytes": 1048576,
+  "repetitions": 10,
+  "samples": 65,
+  "max_abs_error": 0.01,
+  "validation": {
+    "static_preflight": "passed",
+    "firmware_build": "not_run",
+    "hardware": "not_run"
+  },
+  "analysis": {
+    "model_path": "sine_int8.tflite",
+    "model_size_bytes": 3408,
+    "target_name": "esp32s3",
+    "inputs": [
+      {
+        "name": "serving_default_input_layer:0",
+        "shape": [
+          1,
+          1
+        ],
+        "dtype": "int8",
+        "size_bytes": 1,
+        "scales": [
+          0.02455713413655758
+        ],
+        "zero_points": [
+          -128
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "StatefulPartitionedCall_1:0",
+        "shape": [
+          1,
+          1
+        ],
+        "dtype": "int8",
+        "size_bytes": 1,
+        "scales": [
+          0.007836817763745785
+        ],
+        "zero_points": [
+          14
+        ]
+      }
+    ],
+    "operators": [
+      "FULLY_CONNECTED",
+      "FULLY_CONNECTED",
+      "FULLY_CONNECTED"
+    ],
+    "total_macs": 288,
+    "tensor_arena_bytes": 681,
+    "flash_usage_bytes": 3408,
+    "estimated_latency_ms": 0.0048,
+    "compatible": true,
+    "unsupported_ops": [],
+    "warnings": [
+      "Static preflight only: Micro kernel version/type support and arena allocation require runtime validation.",
+      "Flash counts model bytes only; arena is a heuristic. Linker output and device measurements determine actual fit."
+    ],
+    "fits_in_flash": true,
+    "fits_in_ram": true,
+    "operator_versions": {
+      "FULLY_CONNECTED": [
+        4
+      ]
+    },
+    "validation_level": "static_preflight"
+  }
+}

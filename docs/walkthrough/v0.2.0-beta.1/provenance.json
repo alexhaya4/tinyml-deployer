@@ -1,0 +1,31 @@
+{
+  "release_version": "v0.2.0-beta.1",
+  "package_version": "0.2.0b1",
+  "capture_started_utc": "2026-10-13T20:03:20.504035+00:00",
+  "runtime_source_commit": "4de2fe6cf631438b43dafdff065a2153b95461cc",
+  "local_runtime_changes": [
+    "Package version changed to 0.2.0b1; inference implementation unchanged."
+  ],
+  "firmware_source_run": "https://github.com/alexhaya4/tinyml-deployer/actions/runs/38454808140",
+  "firmware_source_commit": "4de2fe6cf631438b43dafdff065a2153b95461cc",
+  "firmware_artifacts": [
+    {
+      "name": "firmware-float32-esp32s3",
+      "id": 11842400918,
+      "zip_sha256": "9f69266b40c6708e0a11df496c97cd03dbcd6dd13a8dff442e4e37c495148cd9"
+    },
+    {
+      "name": "firmware-int8-esp32s3",
+      "id": 11842995686,
+      "zip_sha256": "41bbe5f38f0a38b72a79eb2f4cd3b7f3b097b3115f3a62afbb0356947c02b455"
+    }
+  ],
+  "qemu_archive_url": "https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-linux-gnu.tar.xz",
+  "qemu_archive_sha256": "0eecb2a34a5586c0e59110f77b9343b7b336e82fdb0e1a30e1dc1bab8a547e35",
+  "scope": [
+    "Sine model: training, quantization, analysis and project generation. Sine firmware was not compiled or emulated during this capture.",
+    "QEMU: two distinct compiled CI integration fixtures. Each is compared with desktop predictions of its own deployed TFLite model.",
+    "Movie: edited replay of captured output, with abbreviated paths and selected excerpts; animation timing is editorial. Full stdout, stderr and command durations are archived.",
+    "No physical-board execution or timing claims."
+  ]
+}

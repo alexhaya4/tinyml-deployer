@@ -1,0 +1,16 @@
+{
+  "compression_ratio": 0.9330985915492958,
+  "evaluation": {
+    "max_absolute_error": 0.019417894072830677,
+    "max_allowed_error": 0.05,
+    "mean_absolute_error": 0.0051552156846110635,
+    "output_values": 65,
+    "passed": true,
+    "root_mean_squared_error": 0.006826863266844684,
+    "samples": 65
+  },
+  "original_size": 3180,
+  "output_path": "sine/sine_int8.tflite",
+  "quantization_type": "int8",
+  "quantized_size": 3408
+}
