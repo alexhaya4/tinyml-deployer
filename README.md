@@ -14,7 +14,8 @@ The 0.2 development workflow adds prediction error gates, model-specific C++ ope
 | Analyze | Serialized operators and versions, tensor shapes, dtypes, nominal memory estimates | Micro kernel dtype/version support and actual memory allocation |
 | Quantize | Float TFLite baseline versus candidate predictions on supplied samples | Task accuracy and whether the dataset represents deployment conditions |
 | Generate | C++ wrapper, exact resolver registrations, validation vectors, deployment manifest | Compilation with the pinned toolchain |
-| Build | ESP-IDF linker and partition size checks | Execution on the intended board |
+| Build | ESP-IDF linker and partition size checks | Firmware execution |
+| Emulate | Actual ESP32-S3 binary execution and prediction agreement under pinned QEMU | Physical timing, power and peripheral behavior |
 | Profile | Device latency, arena usage, minimum free heap, prediction agreement | Application behavior under its real workload |
 
 ```mermaid
@@ -24,8 +25,9 @@ flowchart TD
     Q --> T["TFLite model"]
     T --> G["Generate ESP-IDF project"]
     D --> G
-    G --> B["Compile and flash"]
-    B --> P["Profile device and export report"]
+    G --> B["Compile firmware"]
+    B --> E["QEMU execution checks"]
+    B --> P["Flash and profile physical board"]
 ```
 
 `benchmark` remains an analytical MAC-based estimate. It is not a measured benchmark. Flash capacities in the target registry are nominal board assumptions, and the arena estimate does not account precisely for Micro allocator or kernel scratch memory. Use linker output and device measurements to establish fit.
@@ -77,6 +79,27 @@ The two error limits serve different purposes: quantization compares the quantiz
 
 All generated output files and project directories must be new. Existing artifacts are preserved. Training also requires a new output directory.
 
+## Testing without a physical board
+
+The `emulate` command runs the already-built ESP32-S3 firmware under Espressif QEMU. It uses the same compiled binaries and preserves ESP-NN optimizations. It requires a complete fresh run, checks model/dataset identity and prediction error, and rejects crashes, timeouts and incomplete results. No alternative inference implementation or generated measurement data is substituted.
+
+**GitHub CI requires no local installation.** The two `emulate-firmware` jobs execute the float32 and INT8 projects and upload `emulation-float32-esp32s3` and `emulation-int8-esp32s3` JSON report artifacts. They also test wrong-manifest rejection and timeout handling against real QEMU processes.
+
+For local use, the runner is validated on Linux. Windows users can use GitHub CI or Linux through WSL2. Install the Python extra and the pinned [Espressif QEMU release](https://github.com/espressif/qemu/releases/tag/esp-develop-9.2.2-20260417):
+
+```bash
+python -m pip install -e '.[emulation]'
+# Once the pinned QEMU executable and its runtime libraries are installed:
+tinyml-deployer emulate sine_project --report emulation.json
+# Or supply an explicit executable path:
+tinyml-deployer emulate sine_project --qemu /path/to/qemu-system-xtensa \
+  --timeout 120 --report emulation.html
+```
+
+The required QEMU version is `esp_develop_9.2.2_20260417`; it contains ESP32-S3 vector-instruction fixes relevant to optimized kernels. The older QEMU version selected by ESP-IDF 5.5.1's installer is not the validated emulator for this workflow. See [the emulator setup guide](docs/emulation.md) for verified installation commands.
+
+Reports explicitly identify `measurement_kind: emulator`, `hardware_validation: not_run` and `hardware_timing_valid: false`, including in nested validation results. They preserve model/dataset identities, firmware and emulator hashes, raw observations, console output and whether ESP-NN optimizations were enabled. Timing and memory observations describe the emulated execution; they do not establish physical board performance. The original deployment manifest and build artifacts remain unchanged.
+
 ## Input data and supported models
 
 - Quantization accepts original `.keras`, TensorFlow SavedModel directories, or `.onnx` sources. It does not reverse-engineer `.tflite` graphs.
@@ -97,6 +120,7 @@ All generated output files and project directories must be new. Existing artifac
 | `benchmark MODEL --compare` | Compare analytical estimates across nominal targets |
 | `doctor [--onnx] [--report PATH]` | Inspect installed dependencies and ESP32-S3 build tools |
 | `profile --port PORT --manifest PATH --report PATH` | Collect a complete device run with model/dataset identity checks |
+| `emulate PROJECT --report PATH` | Execute a built ESP32-S3 project in pinned QEMU and validate predictions |
 
 Reports support `.json` and standalone `.html`. Device reports include raw observations, median/p95/maximum latency, maximum numerical error, actual arena use and minimum free heap. Timing includes input copy, interpreter invocation and output copy; it excludes warm-up and serial output. A fresh run ID and model/dataset hashes reject stale or unrelated measurements. These checks establish traceability, not cryptographic attestation.
 
@@ -123,7 +147,7 @@ python -m twine check dist/*
 python scripts/prepare_firmware_checks.py --output firmware_checks
 ```
 
-CI tests Python 3.11/3.12, runs actual ONNX conversions, and compiles generated float32 and INT8 ESP32-S3 projects. The firmware check inputs are deterministic test graphs; their build artifacts are not evidence of measured device performance.
+CI tests Python 3.11/3.12, runs actual ONNX conversions, compiles generated float32 and INT8 ESP32-S3 projects, and executes both under pinned Espressif QEMU. The firmware check inputs are deterministic test graphs; their build artifacts are not evidence of measured device performance.
 
 Hardware validation remains pending: run both builds on an ESP32-S3, record the board/flash configuration, collect profiling reports, and verify allocation failures and serial reconnect behavior. A motor-condition monitoring example requires an identified sensor setup, licensed recorded data, a subject/session-separated split and measured task metrics before it can be claimed as a supported application. STM32 firmware support also needs a concrete reference board and verified runtime integration.
 

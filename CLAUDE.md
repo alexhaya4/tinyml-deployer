@@ -6,7 +6,7 @@ Use Python 3.11 or 3.12. Package metadata and dependency constraints live in `py
 
 The CLI lazily imports command modules. `analyzer.py` reads serialized TFLite operators and tensor metadata; its memory and latency values are estimates. `quantizer.py` converts original Keras, SavedModel or ONNX graphs and gates output on actual prediction comparisons in `evaluation.py`. Do not reconstruct source networks from TFLite layer guesses.
 
-`operators.py` maps serialized built-ins to pinned Micro resolver APIs. `codegen.py` emits C++ with a C-callable checked API. `deployer.py` generates ESP-IDF projects using `templates/profile_main.cpp`. `profiler.py` validates serial measurement records against a deployment manifest. `doctor.py` and `reporting.py` provide environment checks and JSON/HTML results.
+`operators.py` maps serialized built-ins to pinned Micro resolver APIs. `codegen.py` emits C++ with a C-callable checked API. `deployer.py` generates ESP-IDF projects using `templates/profile_main.cpp`. `profiler.py` validates serial measurement records against a deployment manifest. `emulator.py` executes actual compiled ESP32-S3 binaries under pinned Espressif QEMU and explicitly labels emulator results. `doctor.py` and `reporting.py` provide environment checks and JSON/HTML results.
 
 ## Conventions
 

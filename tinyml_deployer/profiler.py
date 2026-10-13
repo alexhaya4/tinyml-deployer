@@ -10,6 +10,7 @@ import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
@@ -56,10 +57,16 @@ def validate_manifest(manifest: dict) -> None:
 
 
 def validate_records(
-    records: Iterable[dict], manifest: dict, run_id: str
+    records: Iterable[dict],
+    manifest: dict,
+    run_id: str,
+    *,
+    measurement_kind: Literal["hardware", "emulator"] = "hardware",
 ) -> ProfileResult:
     """Reject incomplete, mismatched, duplicate or invalid device records."""
     validate_manifest(manifest)
+    if measurement_kind not in {"hardware", "emulator"}:
+        raise ValueError("Unknown measurement environment.")
     rows = list(records)
     if (
         len(rows) < 3
@@ -107,8 +114,13 @@ def validate_records(
     latency = [row["latency_us"] for row in measurements]
     error = max(row["max_abs_error"] for row in measurements)
     return ProfileResult(
-        "hardware",
-        "model_run: input copy, invoke, output copy; excludes warm-up and serial I/O",
+        measurement_kind,
+        (
+            "Emulated time; not physical device performance. "
+            if measurement_kind == "emulator"
+            else ""
+        )
+        + "model_run: input copy, invoke, output copy; excludes warm-up and serial I/O",
         manifest["model_sha256"],
         manifest["dataset_sha256"],
         manifest["target"],

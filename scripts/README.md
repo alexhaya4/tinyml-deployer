@@ -11,7 +11,7 @@ idf.py -C firmware_checks/int8_project set-target esp32s3
 idf.py -C firmware_checks/int8_project build
 ```
 
-The CI workflow runs these builds and preserves binaries, maps, manifests and dependency locks. Hardware measurements require flashing and the real `profile` command.
+The CI workflow runs these builds and preserves binaries, maps, manifests and dependency locks. Run `tinyml-deployer emulate firmware_checks/float32_project --report float32-emulation.json` and the equivalent INT8 command to execute the binaries under pinned QEMU. Hardware measurements require flashing and the real `profile` command.
 
 `record_demo.py` runs read-only analysis and analytical estimates with short pauses. It exits on command failure. To record actual output, install asciinema and run:
 

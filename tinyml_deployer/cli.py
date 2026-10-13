@@ -500,5 +500,37 @@ def profile(port: str, manifest: str, report: str, baud: int, timeout: float) ->
         )
 
 
+@cli.command()
+@click.argument("project", type=click.Path(exists=True, file_okay=False))
+@click.option(
+    "--qemu", default="qemu-system-xtensa", help="Pinned Espressif QEMU executable."
+)
+@click.option("--timeout", default=120.0, type=click.FloatRange(min=0, min_open=True))
+@click.option("--report", required=True, type=click.Path())
+def emulate(project: str, qemu: str, timeout: float, report: str) -> None:
+    """Execute built ESP32-S3 firmware in QEMU and validate its predictions."""
+    from tinyml_deployer.emulator import emulate_project
+    from tinyml_deployer.reporting import write_report
+
+    try:
+        if Path(report).exists():
+            raise FileExistsError(f"Report already exists: {report}")
+        result = emulate_project(project, qemu_binary=qemu, timeout=timeout)
+        write_report(result, report)
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(
+        f"Emulator validation: {result.validation.observations} observations; "
+        f"maximum prediction error {result.validation.max_absolute_error:.8g}."
+    )
+    click.echo(
+        "Physical board validation remains pending; emulator timing is not hardware performance."
+    )
+    if not result.validation.prediction_agreement_passed:
+        raise click.ClickException(
+            "Emulated predictions exceed the supplied error limit. See the report."
+        )
+
+
 if __name__ == "__main__":
     cli()

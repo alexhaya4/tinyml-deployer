@@ -188,3 +188,16 @@ def test_serial_transport_reassembles_partial_records(protocol_run, tmp_path):
     finally:
         os.close(master)
         os.close(slave)
+
+
+def test_emulated_records_cannot_claim_hardware_measurements(protocol_run):
+    manifest, rows = protocol_run
+    result = validate_records(rows, manifest, "test", measurement_kind="emulator")
+    assert result.measurement_kind == "emulator"
+    assert "not physical device performance" in result.timing_scope
+    manifest["max_abs_error"] = 0
+    assert not validate_records(
+        rows, manifest, "test", measurement_kind="emulator"
+    ).prediction_agreement_passed
+    with pytest.raises(ValueError, match="Unknown measurement"):
+        validate_records(rows, manifest, "test", measurement_kind="unverified")

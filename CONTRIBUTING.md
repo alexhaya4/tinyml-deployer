@@ -117,3 +117,9 @@ Generate firmware checks with `python scripts/prepare_firmware_checks.py --outpu
 Before declaring hardware support, flash an identified board and collect actual `profile` reports. Record board configuration, toolchain versions, model/dataset hashes and the error budget. Keep compile-only and hardware results distinct. Do not publish synthetic serial fixtures as measured performance.
 
 Quantization must start from the original graph, use representative calibration for INT8, and compare actual predictions on held-out inputs. Never generate calibration data inside the quantization implementation. Preserve existing artifacts.
+
+## Emulator execution
+
+Install `.[dev,onnx,emulation]` and the pinned QEMU release described in `docs/emulation.md`. After building each firmware fixture, run `tinyml-deployer emulate PROJECT --report OUTPUT.json`. Then run the actual-process tests with `TINYML_QEMU_PROJECT=PROJECT pytest tests/test_emulator.py`. Set `TINYML_QEMU_BINARY` when the executable is outside PATH. The integration tests skip only when no compiled project was supplied; CI always supplies one for each firmware variant.
+
+Emulator reports must never claim physical timing or hardware validation. Keep ESP-NN optimizations enabled for the reference CI fixtures. Any emulator or runtime upgrade must rerun both numerical comparisons and negative execution checks.
