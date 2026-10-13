@@ -1,417 +1,220 @@
-"""Scaffold complete deployment projects for ESP32 and STM32 targets."""
+"""Generate ESP-IDF firmware from a checked model and real validation inputs."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import hashlib
+import json
+import re
+import tempfile
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+import numpy as np
+
 from tinyml_deployer.analyzer import ModelAnalysis, analyze_model
-from tinyml_deployer.codegen import GeneratedFile, generate_inference_wrapper, generate_model_data
-from tinyml_deployer.targets import MCUTarget, get_target
+from tinyml_deployer.codegen import (
+    GeneratedFile,
+    generate_inference_wrapper,
+    generate_model_data,
+)
+from tinyml_deployer.evaluation import (
+    encode_input,
+    interpreter_for,
+    load_samples,
+    predict,
+)
+from tinyml_deployer.targets import get_target
+
+IDF_VERSION = "5.5.1"
+MICRO_VERSION = "1.4.1"
+ESP_NN_VERSION = "1.4.1"
 
 
 @dataclass
 class DeployResult:
-    """Summary of a generated deployment project."""
-
     target_name: str
     output_dir: str
     files: list[GeneratedFile] = field(default_factory=list)
     analysis: ModelAnalysis | None = None
 
 
-# ---------------------------------------------------------------------------
-# ESP-IDF project scaffolding
-# ---------------------------------------------------------------------------
-
-_ESP_ROOT_CMAKE = """\
-cmake_minimum_required(VERSION 3.16)
-
-include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
-project({project_name})
-"""
-
-_ESP_MAIN_CMAKE = """\
-idf_component_register(
-    SRCS "main.c" "model_data.c" "inference.c"
-    INCLUDE_DIRS "."
-    REQUIRES esp_timer
-)
-"""
-
-_ESP_MAIN_C = """\
-#include <stdio.h>
-#include "inference.h"
-#include "esp_log.h"
-
-static const char* TAG = "app";
-
-void app_main(void) {{
-    ESP_LOGI(TAG, "Initializing TFLite model...");
-    if (model_init() != 0) {{
-        ESP_LOGE(TAG, "model_init failed");
-        return;
-    }}
-
-    /* Run a single test inference. */
-    {in_ctype} input[MODEL_INPUT_SIZE] = {{ {sample_input} }};
-    {out_ctype} output[MODEL_OUTPUT_SIZE] = {{ 0 }};
-
-    if (model_run(input, output) != 0) {{
-        ESP_LOGE(TAG, "model_run failed");
-        return;
-    }}
-
-    ESP_LOGI(TAG, "Inference result: %f", (double)output[0]);
-    model_free();
-}}
-"""
-
-_ESP_SDKCONFIG = """\
-# Target chip selection (e.g. esp32, esp32s3, esp32c3, esp32c6).
-CONFIG_IDF_TARGET="{idf_target}"
-# TFLite Micro needs at least 8 KB of stack for the main task.
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
-CONFIG_FREERTOS_THREAD_LOCAL_STORAGE_POINTERS=2
-"""
-
-
-def _scaffold_esp32(
-    analysis: ModelAnalysis,
-    target: MCUTarget,
-    output_dir: Path,
-) -> list[GeneratedFile]:
-    """Create an ESP-IDF project skeleton."""
-    files: list[GeneratedFile] = []
-    main_dir = output_dir / "main"
-    main_dir.mkdir(parents=True, exist_ok=True)
-
-    project_name = output_dir.name
-
-    in_ctype = _dtype_to_c(analysis.inputs[0].dtype)
-    out_ctype = _dtype_to_c(analysis.outputs[0].dtype)
-    sample_input = "1.0f" if "float" in in_ctype else "1"
-
-    # Root CMakeLists.txt
-    path = output_dir / "CMakeLists.txt"
-    path.write_text(_ESP_ROOT_CMAKE.format(project_name=project_name))
-    files.append(GeneratedFile(str(path), "Root CMake project file"))
-
-    # main/CMakeLists.txt
-    path = main_dir / "CMakeLists.txt"
-    path.write_text(_ESP_MAIN_CMAKE)
-    files.append(GeneratedFile(str(path), "Main component CMake file"))
-
-    # main/main.c
-    path = main_dir / "main.c"
-    path.write_text(_ESP_MAIN_C.format(
-        in_ctype=in_ctype,
-        out_ctype=out_ctype,
-        sample_input=sample_input,
-    ))
-    files.append(GeneratedFile(str(path), "Application entry point"))
-
-    # sdkconfig.defaults
-    path = output_dir / "sdkconfig.defaults"
-    path.write_text(_ESP_SDKCONFIG.format(idf_target=target.name))
-    files.append(GeneratedFile(str(path), "Default SDK configuration"))
-
-    # README.md
-    files += _write_readme(output_dir, target, analysis, framework="esp-idf")
-
-    return files
-
-
-# ---------------------------------------------------------------------------
-# STM32 project scaffolding
-# ---------------------------------------------------------------------------
-
-_STM32_MAKEFILE = """\
-# Minimal Makefile for STM32 + TFLite Micro build.
-# Adjust TOOLCHAIN_PREFIX and STM32CUBE_PATH for your environment.
-
-TOOLCHAIN_PREFIX ?= arm-none-eabi-
-STM32CUBE_PATH   ?= $(HOME)/STM32Cube
-
-CC  = $(TOOLCHAIN_PREFIX)gcc
-CXX = $(TOOLCHAIN_PREFIX)g++
-AR  = $(TOOLCHAIN_PREFIX)ar
-
-CFLAGS  = -mcpu={cpu} -mthumb -Os -Wall -g
-CFLAGS += -ICore/Inc -I.
-
-SRCS = Core/Src/main.c model_data.c inference.c
-
-all:
-\t$(CC) $(CFLAGS) $(SRCS) -o firmware.elf -lm
-
-clean:
-\trm -f firmware.elf
-
-.PHONY: all clean
-"""
-
-_STM32_MAIN_H = """\
-#ifndef MAIN_H
-#define MAIN_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Include the HAL header for your specific chip, e.g.:
-   #include "stm32f4xx_hal.h"
-   or
-   #include "stm32h7xx_hal.h"
-*/
-
-void SystemClock_Config(void);
-void Error_Handler(void);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  /* MAIN_H */
-"""
-
-_STM32_MAIN_C = """\
-#include "main.h"
-#include "inference.h"
-#include <stdio.h>
-
-/* Minimal clock setup stub. Replace with CubeMX-generated code. */
-void SystemClock_Config(void) {{
-    /* TODO: Configure system clock for your target. */
-}}
-
-void Error_Handler(void) {{
-    while (1) {{
-        /* Stay here on error. */
-    }}
-}}
-
-int main(void) {{
-    /* HAL_Init();            Uncomment after adding HAL sources. */
-    /* SystemClock_Config();  Uncomment after adding HAL sources. */
-
-    if (model_init() != 0) {{
-        Error_Handler();
-    }}
-
-    {in_ctype} input[MODEL_INPUT_SIZE] = {{ {sample_input} }};
-    {out_ctype} output[MODEL_OUTPUT_SIZE] = {{ 0 }};
-
-    if (model_run(input, output) != 0) {{
-        Error_Handler();
-    }}
-
-    /* output[0] now holds the inference result.
-       Use a debugger or UART to inspect it. */
-
-    model_free();
-
-    while (1) {{
-        /* Main loop. */
-    }}
-}}
-"""
-
-
-def _cpu_flag(target: MCUTarget) -> str:
-    """Return the GCC -mcpu value for an STM32 target."""
-    name = target.name.lower()
-    if "h7" in name:
-        return "cortex-m7"
-    return "cortex-m4"
-
-
-def _scaffold_stm32(
-    analysis: ModelAnalysis,
-    target: MCUTarget,
-    output_dir: Path,
-) -> list[GeneratedFile]:
-    """Create an STM32 project skeleton."""
-    files: list[GeneratedFile] = []
-    src_dir = output_dir / "Core" / "Src"
-    inc_dir = output_dir / "Core" / "Inc"
-    src_dir.mkdir(parents=True, exist_ok=True)
-    inc_dir.mkdir(parents=True, exist_ok=True)
-
-    in_ctype = _dtype_to_c(analysis.inputs[0].dtype)
-    out_ctype = _dtype_to_c(analysis.outputs[0].dtype)
-    sample_input = "1.0f" if "float" in in_ctype else "1"
-
-    # Makefile
-    path = output_dir / "Makefile"
-    path.write_text(_STM32_MAKEFILE.format(cpu=_cpu_flag(target)))
-    files.append(GeneratedFile(str(path), "Build Makefile"))
-
-    # Core/Inc/main.h
-    path = inc_dir / "main.h"
-    path.write_text(_STM32_MAIN_H)
-    files.append(GeneratedFile(str(path), "Main header with HAL stubs"))
-
-    # Core/Src/main.c
-    path = src_dir / "main.c"
-    path.write_text(_STM32_MAIN_C.format(
-        in_ctype=in_ctype,
-        out_ctype=out_ctype,
-        sample_input=sample_input,
-    ))
-    files.append(GeneratedFile(str(path), "Application entry point"))
-
-    # README.md
-    files += _write_readme(output_dir, target, analysis, framework="stm32")
-
-    return files
-
-
-# ---------------------------------------------------------------------------
-# README generation
-# ---------------------------------------------------------------------------
-
-def _write_readme(
-    output_dir: Path,
-    target: MCUTarget,
-    analysis: ModelAnalysis,
-    framework: str,
-) -> list[GeneratedFile]:
-    """Write a README.md with build and flash instructions."""
-    model_kb = analysis.model_size_bytes / 1024
-    arena_kb = analysis.tensor_arena_bytes / 1024
-
-    if framework == "esp-idf":
-        build_steps = (
-            "## Build and flash (ESP-IDF)\n"
-            "\n"
-            "1. Install ESP-IDF (v5.x recommended) and set the IDF_PATH\n"
-            "   environment variable.\n"
-            "2. Add the TFLite Micro component to `main/`. You can use the\n"
-            "   official `tflite-micro` ESP-IDF component from the component\n"
-            "   registry or vendor the source directly.\n"
-            "3. Build and flash:\n"
-            "   ```\n"
-            f"   idf.py set-target {target.name}\n"
-            "   idf.py build\n"
-            "   idf.py -p /dev/ttyUSB0 flash monitor\n"
-            "   ```\n"
-        )
-    else:
-        build_steps = (
-            "## Build and flash (STM32)\n"
-            "\n"
-            "1. Install the ARM GCC toolchain (arm-none-eabi-gcc).\n"
-            "2. Install STM32CubeMX or STM32CubeIDE and generate the HAL\n"
-            "   initialization code for your board. Copy the generated HAL\n"
-            "   sources into `Core/`.\n"
-            "3. Add TFLite Micro sources to the project and update the\n"
-            "   Makefile include paths.\n"
-            "4. Build:\n"
-            "   ```\n"
-            "   make\n"
-            "   ```\n"
-            "5. Flash using ST-Link or your preferred programmer:\n"
-            "   ```\n"
-            "   st-flash write firmware.elf 0x8000000\n"
-            "   ```\n"
-        )
-
-    readme = (
-        f"# {output_dir.name}\n"
-        "\n"
-        f"Auto-generated TFLite Micro deployment project for **{target.name}**.\n"
-        "\n"
-        "## Model info\n"
-        "\n"
-        f"- Model size: {model_kb:.1f} KB\n"
-        f"- Tensor arena: {arena_kb:.1f} KB\n"
-        f"- Input shape: {analysis.inputs[0].shape} ({analysis.inputs[0].dtype})\n"
-        f"- Output shape: {analysis.outputs[0].shape} ({analysis.outputs[0].dtype})\n"
-        "\n"
-        f"{build_steps}"
-        "\n"
-        "## Project structure\n"
-        "\n"
-        "- `model_data.h / .c` -- model weights as a C byte array\n"
-        "- `inference.h / .c` -- thin wrapper: model_init(), model_run(), model_free()\n"
-        "- See the source files for detailed comments.\n"
-    )
-    path = output_dir / "README.md"
-    path.write_text(readme)
-    return [GeneratedFile(str(path), "Build and flash instructions")]
-
-
-# ---------------------------------------------------------------------------
-# Helpers shared across scaffolders
-# ---------------------------------------------------------------------------
-
-def _dtype_to_c(dtype: str) -> str:
-    """Map a numpy dtype string to a C type."""
-    mapping = {
-        "float32": "float",
-        "float16": "float",
-        "int8": "int8_t",
-        "uint8": "uint8_t",
-        "int16": "int16_t",
-        "int32": "int32_t",
-    }
-    return mapping.get(dtype, "float")
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
 def deploy_model(
     model_path: str,
     target_name: str,
     output_dir: str,
+    *,
+    arena_size: int,
+    validation_data: str,
+    max_abs_error: float,
+    repetitions: int = 10,
+    flash_budget_bytes: int = 1048576,
 ) -> DeployResult:
-    """Generate a complete deployment project for a TFLite model.
-
-    Args:
-        model_path: Path to the .tflite model file.
-        target_name: Target MCU name (e.g. "esp32", "stm32f4").
-        output_dir: Directory where the project will be created.
-
-    Returns:
-        DeployResult with the list of all generated files.
-
-    Raises:
-        FileNotFoundError: If the model file does not exist.
-        ValueError: If the target is not recognized.
-    """
     target = get_target(target_name)
+    if target.framework != "ESP-IDF":
+        raise ValueError(
+            "STM32 firmware generation is unavailable until board startup, linker "
+            "and runtime integration are verified. Model analysis remains available."
+        )
+    if (
+        not isinstance(arena_size, int)
+        or isinstance(arena_size, bool)
+        or not 0 < arena_size < target.ram_kb * 1024
+    ):
+        raise ValueError(
+            "Arena size must be a positive integer below target RAM capacity."
+        )
+    if (
+        not isinstance(repetitions, int)
+        or isinstance(repetitions, bool)
+        or not 1 <= repetitions <= 10000
+    ):
+        raise ValueError("Repetitions must be an integer from 1 to 10000.")
+    if not np.isfinite(max_abs_error) or max_abs_error < 0:
+        raise ValueError("Maximum absolute error must be finite and non-negative.")
+    if (
+        not isinstance(flash_budget_bytes, int)
+        or not 0 < flash_budget_bytes <= target.flash_kb * 1024 - 0x10000
+    ):
+        raise ValueError(
+            "Flash budget must fit the target after the bootloader and partition table."
+        )
+    if flash_budget_bytes % 0x10000:
+        raise ValueError("Application flash budget must be aligned to 65536 bytes.")
+    out = Path(output_dir).absolute()
+    if out.exists():
+        raise FileExistsError(f"Output directory already exists: {out}")
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_-]*", out.name):
+        raise ValueError(
+            "Project name must contain only letters, digits, hyphens or underscores."
+        )
     analysis = analyze_model(model_path, target_name)
-
-    out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
-
-    result = DeployResult(
-        target_name=target.name,
-        output_dir=str(out),
-        analysis=analysis,
-    )
-
-    is_esp = target.framework == "ESP-IDF"
-
-    # Choose where model_data and inference files land
-    code_dir = out / "main" if is_esp else out
-
-    # Generate C source files
-    result.files += generate_model_data(model_path, str(code_dir))
-    result.files += generate_inference_wrapper(
-        analysis,
-        target.framework,
-        str(code_dir),
-        arena_size=analysis.tensor_arena_bytes,
-    )
-
-    # Scaffold the platform-specific project
-    if is_esp:
-        result.files += _scaffold_esp32(analysis, target, out)
-    else:
-        result.files += _scaffold_stm32(analysis, target, out)
-
-    return result
+    if not analysis.compatible:
+        raise ValueError(
+            "Model failed static preflight: " + "; ".join(analysis.warnings)
+        )
+    samples = load_samples(validation_data)
+    model_bytes = Path(model_path).read_bytes()
+    model_hash = hashlib.sha256(model_bytes).hexdigest()
+    dataset_hash = hashlib.sha256(Path(validation_data).read_bytes()).hexdigest()
+    interpreter = interpreter_for(model_bytes)
+    detail = interpreter.get_input_details()[0]
+    encoded, expected = [], []
+    for sample in samples:
+        encoded.append(encode_input(sample, detail).tobytes())
+        expected.append(predict(interpreter, sample).flatten())
+    vector_bytes = sum(map(len, encoded)) + sum(v.size * 4 for v in expected)
+    if len(model_bytes) + vector_bytes >= flash_budget_bytes:
+        raise ValueError(
+            "Model and validation vectors exceed the application flash budget."
+        )
+    manifest = {
+        "schema_version": 1,
+        "model_sha256": model_hash,
+        "dataset_sha256": dataset_hash,
+        "target": target.name,
+        "esp_idf_version": IDF_VERSION,
+        "micro_version": MICRO_VERSION,
+        "esp_nn_version": ESP_NN_VERSION,
+        "arena_reserved_bytes": arena_size,
+        "app_flash_budget_bytes": flash_budget_bytes,
+        "repetitions": repetitions,
+        "samples": len(samples),
+        "max_abs_error": max_abs_error,
+        "validation": {
+            "static_preflight": "passed",
+            "firmware_build": "not_run",
+            "hardware": "not_run",
+        },
+        "analysis": asdict(analysis),
+    }
+    # Avoid carrying ephemeral conversion paths into reproducible reports.
+    manifest["analysis"]["model_path"] = Path(model_path).name
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".tinyml-", dir=out.parent) as staging:
+        root = Path(staging) / out.name
+        main = root / "main"
+        main.mkdir(parents=True)
+        generate_model_data(model_path, str(main))
+        generate_inference_wrapper(analysis, target.framework, str(main), arena_size)
+        (root / "CMakeLists.txt").write_text(
+            "cmake_minimum_required(VERSION 3.16)\n"
+            "include($ENV{IDF_PATH}/tools/cmake/project.cmake)\n"
+            f"project({out.name})\n"
+        )
+        (main / "CMakeLists.txt").write_text(
+            'idf_component_register(SRCS "main.cpp" "model_data.cpp" "inference.cpp"\n'
+            '  INCLUDE_DIRS "." REQUIRES esp_timer esp_system app_update)\n'
+        )
+        (main / "idf_component.yml").write_text(
+            f'dependencies:\n  idf: "=={IDF_VERSION}"\n'
+            f'  espressif/esp-tflite-micro: "=={MICRO_VERSION}"\n'
+            f'  espressif/esp-nn: "=={ESP_NN_VERSION}"\n'
+        )
+        (root / "sdkconfig.defaults").write_text(
+            f'CONFIG_IDF_TARGET="{target.name}"\nCONFIG_ESP_MAIN_TASK_STACK_SIZE=16384\n'
+            'CONFIG_PARTITION_TABLE_CUSTOM=y\nCONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"\n'
+        )
+        (root / "partitions.csv").write_text(
+            "# Name, Type, SubType, Offset, Size\n"
+            "nvs,data,nvs,0x9000,0x6000\nphy_init,data,phy,0xf000,0x1000\n"
+            f"factory,app,factory,0x10000,{hex(flash_budget_bytes)}\n"
+        )
+        raw = ",\n".join("{" + ",".join(str(v) for v in row) + "}" for row in encoded)
+        values = ",\n".join(
+            "{" + ",".join(float(v).hex() + "f" for v in row) + "}" for row in expected
+        )
+        vectors = (
+            f"#define VALIDATION_SAMPLES {len(samples)}\n#define PROFILE_REPETITIONS {repetitions}\n"
+            f"#define OUTPUT_ELEMENTS {expected[0].size}\n"
+            f"#define MAX_ABS_ERROR {float(max_abs_error).hex()}\n"
+            f"static const unsigned char inputs[VALIDATION_SAMPLES][MODEL_INPUT_BYTES] = {{\n{raw}\n}};\n"
+            f"static const float expected[VALIDATION_SAMPLES][OUTPUT_ELEMENTS] = {{\n{values}\n}};\n"
+        )
+        (main / "validation_data.h").write_text(vectors)
+        template = (
+            Path(__file__).parent / "templates" / "profile_main.cpp"
+        ).read_text()
+        output_info = analysis.outputs[0]
+        dtype = {
+            "float32": "float",
+            "int8": "int8_t",
+            "uint8": "uint8_t",
+            "int16": "int16_t",
+            "int32": "int32_t",
+        }[output_info.dtype]
+        scale = output_info.scales[0] if output_info.scales else 1.0
+        zero = output_info.zero_points[0] if output_info.zero_points else 0
+        for key, value in {
+            "MODEL_HASH": model_hash,
+            "DATASET_HASH": dataset_hash,
+            "OUTPUT_CTYPE": dtype,
+            "OUTPUT_SCALE": float(scale).hex(),
+            "OUTPUT_ZERO": str(zero),
+            "TARGET_NAME": target.name,
+        }.items():
+            template = template.replace("@" + key + "@", value)
+        (main / "main.cpp").write_text(template)
+        (root / "deployment.json").write_text(
+            json.dumps(manifest, indent=2, allow_nan=False) + "\n"
+        )
+        (root / "README.md").write_text(
+            f"# {out.name}\n\nGenerated for {target.name}, ESP-IDF {IDF_VERSION}, "
+            f"esp-tflite-micro {MICRO_VERSION}.\n\n"
+            f"Build with `idf.py set-target {target.name}` and `idf.py build`.\n"
+            "Flash with `idf.py -p PORT flash`. Close the serial monitor before profiling.\n"
+            "Run `tinyml-deployer profile --port PORT --manifest deployment.json --report results.json`.\n\n"
+            "The firmware waits for a profiling request, performs a warm-up and then measures each "
+            "provided sample repeatedly. Results include prediction agreement with the desktop "
+            "TFLite reference. This checks implementation agreement, not task accuracy.\n\n"
+            "Inspect linker size reports and measured arena/heap usage before integration. "
+            "The wrapper uses static storage and requires external serialization. "
+            "Validation arrays consume flash. Remove the validation application when integrating "
+            "the inference library into an application.\n"
+        )
+        root.rename(out)
+    files = [
+        GeneratedFile(str(f), "Generated deployment artifact")
+        for f in sorted(out.rglob("*"))
+        if f.is_file()
+    ]
+    return DeployResult(target.name, str(out), files, analysis)

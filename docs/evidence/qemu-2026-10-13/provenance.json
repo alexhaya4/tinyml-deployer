@@ -1,0 +1,26 @@
+{
+  "repository": "alexhaya4/tinyml-deployer",
+  "commit": "71612ef0016fdcc61e271b842777dcd57696a3fd",
+  "run_id": 38444732537,
+  "run_url": "https://github.com/alexhaya4/tinyml-deployer/actions/runs/38444732537",
+  "run_created_at": "2026-10-13T18:11:29Z",
+  "run_conclusion": "success",
+  "reports": [
+    {
+      "name": "float32",
+      "file": "float32.json",
+      "sha256": "1efb5d53550bb2ca09bc49b0a18e205ca7bc33f76268b7596443a7be2b391f52",
+      "artifact_id": 11838501570,
+      "artifact_zip_sha256": "d745ad7cbd71ee6af8dbffb7a6dc9ca729a4bcb75b92c4cc92ee6afaf96965f0",
+      "artifact_url": "https://github.com/alexhaya4/tinyml-deployer/actions/runs/38444732537/artifacts/11838501570"
+    },
+    {
+      "name": "int8",
+      "file": "int8.json",
+      "sha256": "885572f2ed8fcf0349afaf6c811883dde41fc00ca9bc4ec510e944947ae15cf3",
+      "artifact_id": 11837689151,
+      "artifact_zip_sha256": "b9516b41a17086c2bf8e4d1e13b056cbec15fb8bf98356c6bead296f7e971447",
+      "artifact_url": "https://github.com/alexhaya4/tinyml-deployer/actions/runs/38444732537/artifacts/11837689151"
+    }
+  ]
+}

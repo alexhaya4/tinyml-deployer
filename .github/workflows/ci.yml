@@ -6,45 +6,135 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_CPP_MIN_LOG_LEVEL: '3'
+  TF_NUM_INTEROP_THREADS: '1'
+  TF_NUM_INTRAOP_THREADS: '1'
+
 jobs:
   test:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python: ['3.11', '3.12']
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -e ".[dev]"
-
-      - name: Run tests with coverage
-        run: pytest --cov=tinyml_deployer --cov-report=term-missing --cov-report=html:coverage-report
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage-report/
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: python -m pip install -e '.[dev]'
+      - run: ruff check tinyml_deployer tests scripts examples
+      - run: pytest --cov=tinyml_deployer --cov-report=term-missing
+      - run: python -m build && python -m twine check dist/*
 
   test-onnx:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e '.[dev,onnx]'
+      # Fail before pytest if any optional dependency is missing or broken.
+      - run: python -c 'import onnx, onnx2tf, onnxruntime'
+      - run: pytest tests/test_converters.py -q
 
-      - name: Install dependencies with ONNX support
-        run: pip install -e ".[dev,onnx]"
+  prepare-firmware:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e .
+      - run: python scripts/prepare_firmware_checks.py --output firmware_checks
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-firmware
+          path: firmware_checks/
+          if-no-files-found: error
 
-      - name: Run tests with coverage
-        run: pytest --cov=tinyml_deployer --cov-report=term-missing
+  build-firmware:
+    needs: prepare-firmware
+    runs-on: ubuntu-24.04
+    container: espressif/idf:v5.5.1
+    strategy:
+      matrix:
+        model: [float32, int8]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: generated-firmware
+          path: firmware_checks
+      - name: Compile generated ESP32-S3 firmware
+        shell: bash
+        run: |
+          . "$IDF_PATH/export.sh"
+          idf.py -C firmware_checks/${{ matrix.model }}_project set-target esp32s3
+          idf.py -C firmware_checks/${{ matrix.model }}_project build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.model }}-esp32s3
+          if-no-files-found: error
+          path: |
+            firmware_checks/${{ matrix.model }}_project/build/*.bin
+            firmware_checks/${{ matrix.model }}_project/build/*.map
+            firmware_checks/${{ matrix.model }}_project/build/bootloader/bootloader.bin
+            firmware_checks/${{ matrix.model }}_project/build/partition_table/partition-table.bin
+            firmware_checks/${{ matrix.model }}_project/build/flasher_args.json
+            firmware_checks/${{ matrix.model }}_project/dependencies.lock
+            firmware_checks/${{ matrix.model }}_project/deployment.json
+            firmware_checks/${{ matrix.model }}_project/sdkconfig
+
+  emulate-firmware:
+    needs: build-firmware
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        model: [float32, int8]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware-${{ matrix.model }}-esp32s3
+          path: firmware_project
+      - run: python -m pip install -e '.[dev,emulation]'
+      - name: Install verified Espressif QEMU release
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgcrypt20 libglib2.0-0 libpixman-1-0 libsdl2-2.0-0 libslirp0
+          cd "$RUNNER_TEMP"
+          curl --fail --location --retry 3 --max-time 180 --output qemu.tar.xz \
+            https://github.com/espressif/qemu/releases/download/esp-develop-9.2.2-20260417/qemu-xtensa-softmmu-esp_develop_9.2.2_20260417-x86_64-linux-gnu.tar.xz
+          echo '0eecb2a34a5586c0e59110f77b9343b7b336e82fdb0e1a30e1dc1bab8a547e35  qemu.tar.xz' | sha256sum --check
+          mkdir qemu-install
+          tar -xJf qemu.tar.xz -C qemu-install
+          echo "$RUNNER_TEMP/qemu-install/qemu/bin" >> "$GITHUB_PATH"
+      - name: Execute actual firmware and save emulator report
+        run: tinyml-deployer emulate firmware_project --report emulation-results.json
+      - name: Verify execution, identity mismatch and timeout behavior
+        env:
+          TINYML_QEMU_PROJECT: firmware_project
+        run: pytest tests/test_emulator.py -q
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulation-${{ matrix.model }}-esp32s3
+          path: emulation-results.json
+          if-no-files-found: warn

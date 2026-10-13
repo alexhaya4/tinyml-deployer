@@ -43,3 +43,11 @@ htmlcov/
 
 # Generated quantized models
 *_quant.tflite
+
+# Local validation artifacts
+firmware_checks/
+sine_artifacts/
+.ruff_cache/
+
+# Optional documentation capture tooling
+node_modules/

@@ -1,40 +1,22 @@
-# Sine Wave Model Demo
+# Sine function integration example
 
-A minimal example that trains a tiny neural network to approximate sin(x), exports it as a TFLite model, and analyzes it for MCU deployment.
-
-## Model Architecture
-
-- Input: single float (x value in range 0 to 2*pi)
-- Dense layer: 16 neurons, ReLU activation
-- Dense layer: 16 neurons, ReLU activation
-- Output: single float (predicted sin(x))
-
-Total parameters: ~337 (16 + 16 weights/biases per hidden layer, plus output layer).
-
-## Training
-
-- 1000 random samples from 0 to 2*pi
-- Loss: mean squared error
-- Optimizer: Adam
-- Epochs: 50
-
-## Usage
-
-Train and export the model:
+This 337-parameter dense network approximates sin(x) on [0, 2*pi]. It provides a small, inspectable model for testing conversion and firmware generation. It does not represent motor monitoring, sensor accuracy or measured MCU performance.
 
 ```bash
-python examples/sine_model/train.py
+python examples/sine_model/train.py --output sine_artifacts
 ```
 
-Analyze the exported model for ESP32:
+Training writes a Keras source model, a float TFLite model, 256 calibration inputs and 65 held-out validation inputs to a new directory. The input arrays have shape `[N, 1, 1]`. Training prints a held-out function MSE; quantization separately checks numerical agreement with the float TFLite baseline.
 
 ```bash
-tinyml-deployer analyze examples/sine_model/sine_model.tflite --target esp32
+tinyml-deployer quantize sine_artifacts/sine.keras --type int8 \
+  --calibration sine_artifacts/calibration.npy \
+  --validation sine_artifacts/validation.npy --max-abs-error 0.05 \
+  --output sine_artifacts/sine_int8.tflite --report sine_quantization.json
+
+tinyml-deployer deploy sine_artifacts/sine_int8.tflite --target esp32s3 \
+  --validation sine_artifacts/validation.npy --max-abs-error 0.01 \
+  --arena-size 65536 --output sine_project
 ```
 
-Try other targets:
-
-```bash
-tinyml-deployer analyze examples/sine_model/sine_model.tflite --target stm32f4
-tinyml-deployer analyze examples/sine_model/sine_model.tflite --target stm32h7
-```
+Follow the root README for building, flashing and collecting real device measurements. Adjust the explicit error limits for your application. The checked-in `sine_model.tflite` is a legacy analysis fixture; train again to obtain an original Keras source for quantization.

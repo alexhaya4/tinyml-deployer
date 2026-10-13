@@ -15,7 +15,7 @@ a new MCU target, or improving documentation, your help is welcome.
 2. **Install** in development mode with all dev dependencies:
 
    ```bash
-   pip install -e ".[dev]"
+   python -m pip install -e ".[dev,onnx]"
    ```
 
 3. **Run the tests** to make sure everything works:
@@ -56,8 +56,7 @@ a new MCU target, or improving documentation, your help is welcome.
 5. Add a test class in `tests/test_targets.py` that verifies the target specs.
 6. Run `pytest` to confirm all tests pass.
 
-If the target uses a framework other than `"ESP-IDF"` or `"STM32CubeAI"`, you
-will also need to add a scaffolder in `tinyml_deployer/deployer.py`.
+A target profile is an analysis assumption, not a firmware support claim. New firmware targets need a concrete board, startup and linker integration, a supported runtime, successful compilation, and device measurements. STM32 firmware generation is currently disabled. Update `operators.py` when adding Micro resolver registrations and compile the relevant generated graph.
 
 ## Adding a new CLI command
 
@@ -108,3 +107,19 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Please
 read it before participating.
 
 Thank you for helping make tinyml-deployer better!
+
+## Firmware and conversion gates
+
+Use Python 3.11 or 3.12. Run `ruff check tinyml_deployer tests scripts examples`, the full test suite, `python -m build`, and `python -m twine check dist/*`. The ONNX extra must import successfully and its real conversion tests must pass, not skip.
+
+Generate firmware checks with `python scripts/prepare_firmware_checks.py --output firmware_checks`. Using ESP-IDF 5.5.1, run `idf.py set-target esp32s3` and `idf.py build` inside both generated project directories. CI checks float32 dense operators and an INT8 CNN against esp-tflite-micro 1.4.1.
+
+Before declaring hardware support, flash an identified board and collect actual `profile` reports. Record board configuration, toolchain versions, model/dataset hashes and the error budget. Keep compile-only and hardware results distinct. Do not publish synthetic serial fixtures as measured performance.
+
+Quantization must start from the original graph, use representative calibration for INT8, and compare actual predictions on held-out inputs. Never generate calibration data inside the quantization implementation. Preserve existing artifacts.
+
+## Emulator execution
+
+Install `.[dev,onnx,emulation]` and the pinned QEMU release described in `docs/emulation.md`. After building each firmware fixture, run `tinyml-deployer emulate PROJECT --report OUTPUT.json`. Then run the actual-process tests with `TINYML_QEMU_PROJECT=PROJECT pytest tests/test_emulator.py`. Set `TINYML_QEMU_BINARY` when the executable is outside PATH. The integration tests skip only when no compiled project was supplied; CI always supplies one for each firmware variant.
+
+Emulator reports must never claim physical timing or hardware validation. Keep ESP-NN optimizations enabled for the reference CI fixtures. Any emulator or runtime upgrade must rerun both numerical comparisons and negative execution checks.

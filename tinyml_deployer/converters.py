@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Generator
 
 
 @dataclass
@@ -66,41 +66,35 @@ def convert_onnx_to_tflite(
     if not src.exists():
         raise FileNotFoundError(f"ONNX model file not found: {onnx_path}")
 
+    import onnx
     import onnx2tf
+    import tensorflow as tf
 
+    from tinyml_deployer.io_utils import write_new_file
+
+    # Validate the actual input graph before invoking the converter.
+    onnx.checker.check_model(str(src))
     out = Path(output_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    tflite_filename = src.stem + ".tflite"
-    tflite_path = out / tflite_filename
-
-    try:
+    tflite_path = out / (src.stem + ".tflite")
+    if tflite_path.exists():
+        raise FileExistsError(f"Output already exists: {tflite_path}")
+    with tempfile.TemporaryDirectory(prefix="tinyml_convert_") as directory:
         onnx2tf.convert(
             input_onnx_file_path=str(src),
-            output_folder_path=str(out),
+            output_folder_path=directory,
             non_verbose=True,
+            not_use_onnxsim=True,
         )
-
-        # onnx2tf writes output as <output_dir>/model_float32.tflite by
-        # default. Rename to match the original model name.
-        default_output = out / "model_float32.tflite"
-        if default_output.exists() and default_output != tflite_path:
-            default_output.rename(tflite_path)
-        elif not tflite_path.exists():
-            # Fallback -- look for any .tflite produced in the output dir
-            tflite_files = list(out.glob("*.tflite"))
-            if tflite_files:
-                tflite_files[0].rename(tflite_path)
-            else:
-                raise RuntimeError(
-                    f"ONNX conversion completed but no .tflite file was "
-                    f"produced in {output_dir}"
-                )
-    except Exception as exc:
-        if isinstance(exc, (ImportError, FileNotFoundError, RuntimeError)):
-            raise
-        raise RuntimeError(
-            f"Failed to convert ONNX model '{onnx_path}' to TFLite: {exc}"
-        ) from exc
+        # Only accept an unambiguous float32 artifact from this conversion.
+        candidates = list(Path(directory).glob("*_float32.tflite"))
+        if len(candidates) != 1:
+            raise RuntimeError(
+                "ONNX conversion did not produce exactly one float32 TFLite model."
+            )
+        content = candidates[0].read_bytes()
+        interpreter = tf.lite.Interpreter(model_content=content)
+        interpreter.allocate_tensors()
+        write_new_file(tflite_path, content)
 
     return ConversionResult(
         original_path=str(src),
@@ -146,6 +140,5 @@ def ensure_tflite(model_path: str) -> Generator[str, None, None]:
             yield result.converted_path
     else:
         raise ValueError(
-            f"Unsupported model format '{suffix}'. "
-            f"Supported formats: .tflite, .onnx"
+            f"Unsupported model format '{suffix}'. Supported formats: .tflite, .onnx"
         )

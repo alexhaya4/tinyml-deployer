@@ -1,94 +1,82 @@
-"""Tests for tinyml_deployer.deployer."""
+"""Validate generated artifacts, safety gates and deployment provenance."""
 
-from __future__ import annotations
-
-from pathlib import Path
+import json
 
 import pytest
 
-from tinyml_deployer.deployer import DeployResult, deploy_model
+from tinyml_deployer.deployer import deploy_model
 
 
-class TestDeployESP32:
-    """Test deploy_model() for ESP-IDF targets."""
-
-    def test_returns_deploy_result(self, sine_model_path: str, tmp_output: str) -> None:
-        out_dir = str(Path(tmp_output) / "esp_proj")
-        result = deploy_model(sine_model_path, "esp32", out_dir)
-        assert isinstance(result, DeployResult)
-        assert result.target_name == "esp32"
-        assert result.analysis is not None
-
-    def test_creates_expected_files(self, sine_model_path: str, tmp_output: str) -> None:
-        out_dir = Path(tmp_output) / "esp_proj"
-        deploy_model(sine_model_path, "esp32", str(out_dir))
-
-        expected = [
-            out_dir / "CMakeLists.txt",
-            out_dir / "sdkconfig.defaults",
-            out_dir / "README.md",
-            out_dir / "main" / "CMakeLists.txt",
-            out_dir / "main" / "main.c",
-            out_dir / "main" / "model_data.h",
-            out_dir / "main" / "model_data.c",
-            out_dir / "main" / "inference.h",
-            out_dir / "main" / "inference.c",
-        ]
-        for path in expected:
-            assert path.exists(), f"Missing: {path}"
-
-    def test_main_c_has_app_main(self, sine_model_path: str, tmp_output: str) -> None:
-        out_dir = Path(tmp_output) / "esp_proj"
-        deploy_model(sine_model_path, "esp32", str(out_dir))
-        main_c = (out_dir / "main" / "main.c").read_text()
-        assert "app_main" in main_c
-        assert "model_init" in main_c
-
-    def test_file_count(self, sine_model_path: str, tmp_output: str) -> None:
-        out_dir = str(Path(tmp_output) / "esp_proj")
-        result = deploy_model(sine_model_path, "esp32", out_dir)
-        assert len(result.files) == 9
+def test_deployment_artifacts(sine_model_path, validation_path, tmp_path):
+    out = tmp_path / "firmware"
+    result = deploy_model(
+        sine_model_path,
+        "esp32s3",
+        str(out),
+        arena_size=65536,
+        validation_data=validation_path,
+        max_abs_error=1e-5,
+    )
+    assert result.analysis.compatible
+    manifest = json.loads((out / "deployment.json").read_text())
+    assert manifest["validation"]["hardware"] == "not_run"
+    assert manifest["samples"] == 17
+    assert len(manifest["model_sha256"]) == 64
+    assert (out / "main" / "inference.cpp").exists()
+    assert not (out / "main" / "inference.c").exists()
+    assert (
+        "espressif/esp-tflite-micro" in (out / "main" / "idf_component.yml").read_text()
+    )
+    assert "run_id" in (out / "main" / "main.cpp").read_text()
+    assert not any(
+        "@" in line for line in (out / "main" / "main.cpp").read_text().splitlines()
+    )
 
 
-class TestDeploySTM32:
-    """Test deploy_model() for STM32 targets."""
+def test_existing_directory_untouched(sine_model_path, validation_path, tmp_path):
+    (tmp_path / "keep.txt").write_text("user data")
+    with pytest.raises(FileExistsError):
+        deploy_model(
+            sine_model_path,
+            "esp32s3",
+            str(tmp_path),
+            arena_size=65536,
+            validation_data=validation_path,
+            max_abs_error=1e-5,
+        )
+    assert list(tmp_path.glob("keep.txt"))
+    assert not (tmp_path / "main").exists()
 
-    def test_returns_deploy_result(self, sine_model_path: str, tmp_output: str) -> None:
-        out_dir = str(Path(tmp_output) / "stm_proj")
-        result = deploy_model(sine_model_path, "stm32f4", out_dir)
-        assert isinstance(result, DeployResult)
-        assert result.target_name == "stm32f4"
 
-    def test_creates_expected_files(self, sine_model_path: str, tmp_output: str) -> None:
-        out_dir = Path(tmp_output) / "stm_proj"
-        deploy_model(sine_model_path, "stm32f4", str(out_dir))
+def test_stm32_never_emits_unfinished_firmware(
+    sine_model_path, validation_path, tmp_path
+):
+    out = tmp_path / "stm"
+    with pytest.raises(ValueError, match="STM32"):
+        deploy_model(
+            sine_model_path,
+            "stm32f4",
+            str(out),
+            arena_size=65536,
+            validation_data=validation_path,
+            max_abs_error=1e-5,
+        )
+    assert not out.exists()
 
-        expected = [
-            out_dir / "Makefile",
-            out_dir / "README.md",
-            out_dir / "model_data.h",
-            out_dir / "model_data.c",
-            out_dir / "inference.h",
-            out_dir / "inference.c",
-            out_dir / "Core" / "Inc" / "main.h",
-            out_dir / "Core" / "Src" / "main.c",
-        ]
-        for path in expected:
-            assert path.exists(), f"Missing: {path}"
 
-    def test_makefile_has_cortex_flag(self, sine_model_path: str, tmp_output: str) -> None:
-        out_dir = Path(tmp_output) / "stm_proj"
-        deploy_model(sine_model_path, "stm32f4", str(out_dir))
-        makefile = (out_dir / "Makefile").read_text()
-        assert "cortex-m4" in makefile
+def test_bad_input_shape_has_no_partial_project(sine_model_path, tmp_path):
+    import numpy as np
 
-    def test_stm32h7_uses_cortex_m7(self, sine_model_path: str, tmp_output: str) -> None:
-        out_dir = Path(tmp_output) / "stm_h7_proj"
-        deploy_model(sine_model_path, "stm32h7", str(out_dir))
-        makefile = (out_dir / "Makefile").read_text()
-        assert "cortex-m7" in makefile
-
-    def test_file_count(self, sine_model_path: str, tmp_output: str) -> None:
-        out_dir = str(Path(tmp_output) / "stm_proj")
-        result = deploy_model(sine_model_path, "stm32f4", out_dir)
-        assert len(result.files) == 8
+    path = tmp_path / "wrong.npy"
+    np.save(path, np.ones((2, 1, 3), dtype=np.float32))
+    out = tmp_path / "firmware"
+    with pytest.raises(ValueError, match="shape"):
+        deploy_model(
+            sine_model_path,
+            "esp32s3",
+            str(out),
+            arena_size=65536,
+            validation_data=str(path),
+            max_abs_error=1e-5,
+        )
+    assert not out.exists()
