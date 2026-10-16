@@ -94,19 +94,12 @@ In your PR description, please include:
 
 ## Reporting issues
 
-Open an issue on GitHub using one of the provided templates:
+Open an issue on GitHub and include the relevant details:
 
 - **Bug report** -- describe the bug, steps to reproduce, expected behavior,
   target MCU, Python version, and OS.
 - **Feature request** -- describe the feature, the use case, and a proposed
   solution if you have one.
-
-## Code of conduct
-
-This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Please
-read it before participating.
-
-Thank you for helping make tinyml-deployer better!
 
 ## Firmware and conversion gates
 

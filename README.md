@@ -20,7 +20,7 @@ A Python CLI that takes an original neural-network graph through quantization, p
 
 **[Watch the 54-second MP4](docs/walkthrough/v0.2.0-beta.1/walkthrough.mp4)** · [Static poster](docs/walkthrough/v0.2.0-beta.1/poster.png) · [Transcript and reproduction](docs/walkthrough/v0.2.0-beta.1/README.md) · [Beta release notes](docs/releases/v0.2.0-beta.1.md)
 
-*Captioned, silent replay of real CLI output. The sine conversion example and the two compiled CI emulator fixtures are identified separately. Animation timing is edited; physical-board validation is pending.*
+Recorded CLI workflow covering model conversion, firmware generation and QEMU validation. Physical-board testing remains pending.
 
 ## Why this project
 
@@ -56,14 +56,13 @@ These are **different integration-test graphs**, each compared with desktop exec
 
 ![Screenshot of the documentation evidence page rendered from the archived float32 and INT8 CI reports, showing observation counts, error limits, binary sizes and pending hardware validation.](docs/assets/evidence-screenshot.png)
 
-*Actual browser capture of the [documentation evidence view](docs/evidence/qemu-2026-10-13/index.html). All displayed measurements are read from the original CI JSON reports. This is a documentation view, not a separate application UI.*
+Open the [evidence view](docs/evidence/qemu-2026-10-13/index.html) to inspect the archived CI results and model identities.
 
 The reports are preserved in this repository, so you can inspect them without downloading temporary Actions artifacts:
 
 - [Float32 report](docs/evidence/qemu-2026-10-13/float32.json)
 - [INT8 report](docs/evidence/qemu-2026-10-13/int8.json)
 - [Source run, artifact IDs and checksums](docs/evidence/qemu-2026-10-13/provenance.json)
-- [How the visuals are generated](docs/visuals.md)
 
 ## Get started
 
@@ -247,7 +246,7 @@ Physical-device reports include raw observations, median/p95/maximum latency, ar
 
 ```bash
 python -m pip install -e '.[dev,onnx,emulation]'
-ruff check tinyml_deployer tests scripts examples docs/build_visuals.py
+ruff check tinyml_deployer tests scripts examples
 pytest
 python -m build
 python -m twine check dist/*

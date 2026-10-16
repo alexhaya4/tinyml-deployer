@@ -25,7 +25,6 @@
   "scope": [
     "Sine model: training, quantization, analysis and project generation. Sine firmware was not compiled or emulated during this capture.",
     "QEMU: two distinct compiled CI integration fixtures. Each is compared with desktop predictions of its own deployed TFLite model.",
-    "Movie: edited replay of captured output, with abbreviated paths and selected excerpts; animation timing is editorial. Full stdout, stderr and command durations are archived.",
     "No physical-board execution or timing claims."
   ]
 }

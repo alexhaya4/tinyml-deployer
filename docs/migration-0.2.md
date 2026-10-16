@@ -20,5 +20,3 @@ Python callers of `quantize_model` must provide `validation_samples` and `max_ab
 Generated `model_run` takes input and output byte counts and returns a status. Call `model_init` first. Inputs and outputs use the native tensor dtype; obtain quantization parameters from `deployment.json`. The wrapper is single-instance and requires external serialization. `model_free` disables inference without reclaiming static storage; `model_init` can enable it again.
 
 Existing files are never intentionally overwritten. Choose a new model/report path and a new project directory for every generation. Quantization failures leave no output model. Device reports that exceed the numerical error gate remain available for inspection and cause a nonzero CLI exit.
-
-Historical launch material in `docs/blog_post.md` describes version 0.1 and is not an installation or validation reference for this branch.
