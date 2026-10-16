@@ -14,13 +14,17 @@ A Python CLI that takes an original neural-network graph through quantization, p
 
 > **Current status:** `v0.2.0-beta.1` (`0.2.0b1`), installed from source. ESP32-S3 float32 and INT8 firmware builds and QEMU execution are verified in CI. Physical-board validation remains pending. The published 0.1 package has a different interface.
 
-## Watch the walkthrough
+## Watch Signal to Silicon
 
-[![Animated preview of recorded TinyML commands: quantization, C++ generation and ESP32-S3 QEMU validation.](docs/walkthrough/v0.2.0-beta.1/preview.gif)](docs/walkthrough/v0.2.0-beta.1/walkthrough.mp4)
+[![Watch Signal to Silicon: a moving signal becomes a model graph, numerical blocks, generated code and an ESP32-S3 board reveal.](docs/assets/signal-to-silicon-poster.jpg)](https://alexhaya4.github.io/alexhaya4/tinyml/#film)
 
-**[Watch the 54-second MP4](docs/walkthrough/v0.2.0-beta.1/walkthrough.mp4)** · [Static poster](docs/walkthrough/v0.2.0-beta.1/poster.png) · [Transcript and reproduction](docs/walkthrough/v0.2.0-beta.1/README.md) · [Beta release notes](docs/releases/v0.2.0-beta.1.md)
+**[Watch the 36-second film](https://alexhaya4.github.io/alexhaya4/tinyml/#film)** · [Open MP4](https://alexhaya4.github.io/alexhaya4/assets/tinyml-signal-to-silicon-caedd65f39d3.mp4)
 
-Recorded CLI workflow covering model conversion, firmware generation and QEMU validation. Physical-board testing remains pending.
+A visual introduction to the model-to-firmware workflow. Physical-board validation remains pending.
+
+For the recorded commands, see the **[54-second CLI walkthrough](docs/walkthrough/v0.2.0-beta.1/walkthrough.mp4)** and its [transcript and reproduction steps](docs/walkthrough/v0.2.0-beta.1/README.md).
+
+Film and poster: Alex Haya. Board photograph: [Espressif](https://github.com/espressif/esp-dev-kits/blob/master/docs/_static/esp32-s3-devkitc-1/esp32-s3-devkitc-1-v1.1-isometric.png), cropped and animated. These media are licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
 
 ## Why this project
 
